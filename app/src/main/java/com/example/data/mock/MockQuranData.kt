@@ -1,0 +1,360 @@
+package com.example.data.mock
+
+import com.example.data.model.JuzInfo
+import com.example.data.model.Surah
+import com.example.data.model.Verse
+
+object MockQuranData {
+
+    val surahList: List<Surah> = listOf(
+        Surah(
+            number = 1,
+            nameArabic = "الفَاتِحَة",
+            nameEnglish = "Al-Fatihah",
+            nameTranslation = "The Opening",
+            revelationType = "Meccan",
+            totalVerses = 7,
+            verses = listOf(
+                Verse(
+                    id = "1:1",
+                    surahNumber = 1,
+                    verseNumber = 1,
+                    textArabic = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
+                    transliteration = "Bismillāhir-Raḥmānir-Raḥīm",
+                    translationEnglish = "In the name of Allah, the Entirely Merciful, the Especially Merciful.",
+                    translationMalay = "Dengan nama Allah, Yang Maha Pemurah, lagi Maha Mengasihani.",
+                    tajwidRuleHighlight = "Mad Asli on الرَّحْمَٰنِ"
+                ),
+                Verse(
+                    id = "1:2",
+                    surahNumber = 1,
+                    verseNumber = 2,
+                    textArabic = "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",
+                    transliteration = "Al-ḥamdu lillāhi Rabbil-ʿālamīn",
+                    translationEnglish = "[All] praise is [due] to Allah, Lord of the worlds -",
+                    translationMalay = "Segala puji tertentu bagi Allah, Tuhan sekalian alam.",
+                    tajwidRuleHighlight = "Idh-har Qamari on الْحَمْدُ"
+                ),
+                Verse(
+                    id = "1:3",
+                    surahNumber = 1,
+                    verseNumber = 3,
+                    textArabic = "الرَّحْمَٰنِ الرَّحِيمِ",
+                    transliteration = "Ar-Raḥmānir-Raḥīm",
+                    translationEnglish = "The Entirely Merciful, the Especially Merciful,",
+                    translationMalay = "Yang Maha Pemurah, lagi Maha Mengasihani.",
+                    tajwidRuleHighlight = "Idgham Shamsi on الرَّحْمَٰنِ"
+                ),
+                Verse(
+                    id = "1:4",
+                    surahNumber = 1,
+                    verseNumber = 4,
+                    textArabic = "مَالِكِ يَوْمِ الدِّينِ",
+                    transliteration = "Māliki yawmid-dīn",
+                    translationEnglish = "Sovereign of the Day of Recompense.",
+                    translationMalay = "Yang Menguasai pemerintahan hari Pembalasan.",
+                    tajwidRuleHighlight = "Mad Tabee'i on مَالِكِ"
+                ),
+                Verse(
+                    id = "1:5",
+                    surahNumber = 1,
+                    verseNumber = 5,
+                    textArabic = "إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ",
+                    transliteration = "Iyyāka naʿbudu wa-iyyāka nastaʿīn",
+                    translationEnglish = "It is You we worship and You we ask for help.",
+                    translationMalay = "Engkaulah sahaja yang kami sembah dan kepada Engkaulah sahaja kami memohon pertolongan.",
+                    tajwidRuleHighlight = "Shaddah articulation on إِيَّاكَ"
+                ),
+                Verse(
+                    id = "1:6",
+                    surahNumber = 1,
+                    verseNumber = 6,
+                    textArabic = "اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ",
+                    transliteration = "Ihdinaṣ-ṣirāṭal-mustaqīm",
+                    translationEnglish = "Guide us to the straight path -",
+                    translationMalay = "Tunjukilah kami jalan yang lurus.",
+                    tajwidRuleHighlight = "Makhraj of Ṣad vs Sin"
+                ),
+                Verse(
+                    id = "1:7",
+                    surahNumber = 1,
+                    verseNumber = 7,
+                    textArabic = "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ",
+                    transliteration = "Ṣirāṭallaḏhīna anʿamta ʿalayhim ghayril-maghḍūbi ʿalayhim walāḍ-ḍāllīn",
+                    translationEnglish = "The path of those upon whom You have bestowed favor, not of those who have evoked [Your] anger or of those who are astray.",
+                    translationMalay = "Iaitu jalan orang-orang yang Engkau telah kurniakan nikmat kepada mereka, bukan (jalan) orang-orang yang dimurkai dan bukan pula (jalan) orang-orang yang sesat.",
+                    tajwidRuleHighlight = "Mad Lazim Kalimi Muthaqqal on الضَّالِّينَ (6 Harakat)"
+                )
+            )
+        ),
+        Surah(
+            number = 2,
+            nameArabic = "البَقَرَة",
+            nameEnglish = "Al-Baqarah",
+            nameTranslation = "The Cow",
+            revelationType = "Medinan",
+            totalVerses = 286,
+            verses = listOf(
+                Verse(
+                    id = "2:1",
+                    surahNumber = 2,
+                    verseNumber = 1,
+                    textArabic = "الم",
+                    transliteration = "Alif-Lām-Mīm",
+                    translationEnglish = "Alif, Lam, Meem.",
+                    translationMalay = "Alif, Laam, Miim.",
+                    tajwidRuleHighlight = "Mad Lazim Harfi Muthaqqal (6 Harakat)"
+                ),
+                Verse(
+                    id = "2:2",
+                    surahNumber = 2,
+                    verseNumber = 2,
+                    textArabic = "ذَٰلِكَ الْكِتَابُ لَا رَيْبَ ۛ فِيهِ ۛ هُدًى لِّلْمُتَّقِينَ",
+                    transliteration = "Zālikal-kitābu lā rayba fīh, hudal-lil-muttaqīn",
+                    translationEnglish = "This is the Book about which there is no doubt, a guidance for those conscious of Allah -",
+                    translationMalay = "Kitab Al-Quran ini, tidak ada sebarang keraguan padanya; petunjuk bagi orang-orang yang bertaqwa.",
+                    tajwidRuleHighlight = "Tanween Idgham Bila Ghunnah on هُدًى لِّلْمُتَّقِينَ"
+                ),
+                Verse(
+                    id = "2:3",
+                    surahNumber = 2,
+                    verseNumber = 3,
+                    textArabic = "الَّذِينَ يُؤْمِنُونَ بِالْغَيْبِ وَيُقِيمُونَ الصَّلَاةَ وَمِمَّا رَزَقْنَاهُمْ يُنفِقُونَ",
+                    transliteration = "Alladhīna yu'minūna bil-ghaybi wa yuqīmūnaṣ-ṣalāta wa mimmā razaqnāhum yunfiqūn",
+                    translationEnglish = "Who believe in the unseen, establish prayer, and spend out of what We have provided for them,",
+                    translationMalay = "Iaitu orang-orang yang beriman kepada perkara yang ghaib, mendirikan sembahyang, dan mendermakan sebahagian dari rezeki yang Kami berikan kepada mereka.",
+                    tajwidRuleHighlight = "Ikhfa Haqiqi on يُنفِقُونَ"
+                ),
+                Verse(
+                    id = "2:4",
+                    surahNumber = 2,
+                    verseNumber = 4,
+                    textArabic = "وَالَّذِينَ يُؤْمِنُونَ بِمَا أُنزِلَ إِلَيْكَ وَمَا أُنزِلَ مِن قَبْلِكَ وَبِالْآخِرَةِ هُمْ يُوقِنُونَ",
+                    transliteration = "Walladhīna yu'minūna bimā unzila ilayka wa mā unzila min qablika wa bil-ākhirati hum yūqinūn",
+                    translationEnglish = "And who believe in what has been revealed to you, [O Muhammad], and what was revealed before you, and of the Hereafter they are certain [in faith].",
+                    translationMalay = "Dan mereka yang beriman kepada kitab yang diturunkan kepadamu dan kitab-kitab yang diturunkan sebelummu, serta yakin akan adanya hari akhirat.",
+                    tajwidRuleHighlight = "Mad Ja'iz Munfasil on بِمَا أُنزِلَ"
+                ),
+                Verse(
+                    id = "2:5",
+                    surahNumber = 2,
+                    verseNumber = 5,
+                    textArabic = "أُولَٰئِكَ عَلَىٰ هُدًى مِّن رَّبِّهِمْ ۖ وَأُولَٰئِكَ هُمُ الْمُفْلِحُونَ",
+                    transliteration = "Ulā'ika ʿalā hudam-mir-Rabbihim wa ulā'ika humul-mufliḥūn",
+                    translationEnglish = "Those are upon [right] guidance from their Lord, and it is those who are the successful.",
+                    translationMalay = "Mereka itulah yang tetap mendapat petunjuk dari Tuhan mereka, dan merekalah orang-orang yang berjaya.",
+                    tajwidRuleHighlight = "Mad Wajib Muttasil on أُولَٰئِكَ"
+                ),
+                Verse(
+                    id = "2:255",
+                    surahNumber = 2,
+                    verseNumber = 255,
+                    textArabic = "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ ۚ لَّهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ ۗ مَن ذَا الَّذِي يَشْفَعُ عِندَهُ إِلَّا بِإِذْنِهِ ۚ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ ۖ وَلَا يُحِيطُونَ بِشَيْءٍ مِّنْ عِلْمِهِ إِلَّا بِمَا شَاءَ ۚ وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ ۖ وَلَا يَئُودُهُ حِفْظُهُمَا ۚ وَهُوَ الْعَلِيُّ الْعَظِيمُ",
+                    transliteration = "Allāhu lā ilāha illā Huwal-Ḥayyul-Qayyūm. Lā ta'khudhuhū sinatuw-wa lā nawm...",
+                    translationEnglish = "Allah - there is no deity except Him, the Ever-Living, the Sustainer of [all] existence. Neither drowsiness overtakes Him nor sleep... (Ayat al-Kursi)",
+                    translationMalay = "Allah, tiada Tuhan melainkan Dia, Yang Tetap Hidup, Yang Mentadbir sekalian makhlukNya... (Ayat Kursi)",
+                    tajwidRuleHighlight = "Ayat al-Kursi (The Throne Verse) — comprehensive Tajwid elongation"
+                )
+            )
+        ),
+        Surah(
+            number = 112,
+            nameArabic = "الإِخْلَاص",
+            nameEnglish = "Al-Ikhlas",
+            nameTranslation = "The Sincerity",
+            revelationType = "Meccan",
+            totalVerses = 4,
+            verses = listOf(
+                Verse(
+                    id = "112:1",
+                    surahNumber = 112,
+                    verseNumber = 1,
+                    textArabic = "قُلْ هُوَ اللَّهُ أَحَدٌ",
+                    transliteration = "Qul Huwal-lāhu Aḥad",
+                    translationEnglish = "Say, \"He is Allah, [who is] One,",
+                    translationMalay = "Katakanlah (wahai Muhammad): Dialah Allah, Yang Maha Esa;",
+                    tajwidRuleHighlight = "Qalqalah Kubra on أَحَدٌ (when stopping)"
+                ),
+                Verse(
+                    id = "112:2",
+                    surahNumber = 112,
+                    verseNumber = 2,
+                    textArabic = "اللَّهُ الصَّمَدُ",
+                    transliteration = "Allāhuṣ-Ṣamad",
+                    translationEnglish = "Allah, the Eternal Refuge.",
+                    translationMalay = "Allah Yang menjadi tumpuan sekalian makhluk untuk memohon sebarang hajat;",
+                    tajwidRuleHighlight = "Qalqalah Kubra on الصَّمَدُ"
+                ),
+                Verse(
+                    id = "112:3",
+                    surahNumber = 112,
+                    verseNumber = 3,
+                    textArabic = "لَمْ يَلِدْ وَلَمْ يُولَدْ",
+                    transliteration = "Lam yalid wa lam yūlad",
+                    translationEnglish = "He neither begets nor is born,",
+                    translationMalay = "Ia tiada beranak, dan Ia pula tidak diperanakkan;",
+                    tajwidRuleHighlight = "Qalqalah Sughra on يَلِدْ and يُولَدْ"
+                ),
+                Verse(
+                    id = "112:4",
+                    surahNumber = 112,
+                    verseNumber = 4,
+                    textArabic = "وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ",
+                    transliteration = "Wa lam yakul-lahū kufuwan aḥad",
+                    translationEnglish = "Nor is there to Him any equivalent.\"",
+                    translationMalay = "Dan tidak ada sesiapapun yang setara dengan-Nya.",
+                    tajwidRuleHighlight = "Idgham Bila Ghunnah on يَكُن لَّهُ"
+                )
+            )
+        ),
+        Surah(
+            number = 113,
+            nameArabic = "الفَلَق",
+            nameEnglish = "Al-Falaq",
+            nameTranslation = "The Daybreak",
+            revelationType = "Meccan",
+            totalVerses = 5,
+            verses = listOf(
+                Verse(
+                    id = "113:1",
+                    surahNumber = 113,
+                    verseNumber = 1,
+                    textArabic = "قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ",
+                    transliteration = "Qul aʿūḏhu bi-Rabbil-falaq",
+                    translationEnglish = "Say, \"I seek refuge in the Lord of daybreak",
+                    translationMalay = "Katakanlah (wahai Muhammad): Aku berlindung kepada Allah Tuhan yang menciptakan sekalian makhluk,",
+                    tajwidRuleHighlight = "Qalqalah Kubra on الْفَلَقِ"
+                ),
+                Verse(
+                    id = "113:2",
+                    surahNumber = 113,
+                    verseNumber = 2,
+                    textArabic = "مِن شَرِّ مَا خَلَقَ",
+                    transliteration = "Min sharri mā khalaq",
+                    translationEnglish = "From the evil of that which He created",
+                    translationMalay = "Dari bencana makhluk-makhluk yang Dia ciptakan;",
+                    tajwidRuleHighlight = "Ikhfa Haqiqi on مِن شَرِّ"
+                ),
+                Verse(
+                    id = "113:3",
+                    surahNumber = 113,
+                    verseNumber = 3,
+                    textArabic = "وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ",
+                    transliteration = "Wa min sharri ghāsiqin iḏhā waqab",
+                    translationEnglish = "And from the evil of darkness when it settles",
+                    translationMalay = "Dan dari bahaya gelap apabila ia masuk;",
+                    tajwidRuleHighlight = "Idh-har Halqi on غَاسِقٍ إِذَا"
+                ),
+                Verse(
+                    id = "113:4",
+                    surahNumber = 113,
+                    verseNumber = 4,
+                    textArabic = "وَمِن شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ",
+                    transliteration = "Wa min sharrin-naffāthāti fīl-ʿuqad",
+                    translationEnglish = "And from the evil of the blowers in knots",
+                    translationMalay = "Dan dari kejahatan makhluk-makhluk yang menghembus-hembus pada simpulan-simpulan;",
+                    tajwidRuleHighlight = "Ghunnah Mushaddadah on النَّفَّاثَاتِ"
+                ),
+                Verse(
+                    id = "113:5",
+                    surahNumber = 113,
+                    verseNumber = 5,
+                    textArabic = "وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ",
+                    transliteration = "Wa min sharri ḥāsidin iḏhā ḥasad",
+                    translationEnglish = "And from the evil of an envier when he envies.\"",
+                    translationMalay = "Dan dari kejahatan orang yang dengki apabila ia melakukan dengkinya.",
+                    tajwidRuleHighlight = "Qalqalah Kubra on حَسَدَ"
+                )
+            )
+        ),
+        Surah(
+            number = 114,
+            nameArabic = "النَّاس",
+            nameEnglish = "An-Nas",
+            nameTranslation = "Mankind",
+            revelationType = "Meccan",
+            totalVerses = 6,
+            verses = listOf(
+                Verse(
+                    id = "114:1",
+                    surahNumber = 114,
+                    verseNumber = 1,
+                    textArabic = "قُلْ أَعُوذُ بِرَبِّ النَّاسِ",
+                    transliteration = "Qul aʿūḏhu bi-Rabbin-nās",
+                    translationEnglish = "Say, \"I seek refuge in the Lord of mankind,",
+                    translationMalay = "Katakanlah (wahai Muhammad): Aku berlindung kepada Tuhan sekalian manusia,",
+                    tajwidRuleHighlight = "Ghunnah Mushaddadah on النَّاسِ"
+                ),
+                Verse(
+                    id = "114:2",
+                    surahNumber = 114,
+                    verseNumber = 2,
+                    textArabic = "مَلِكِ النَّاسِ",
+                    transliteration = "Malikin-nās",
+                    translationEnglish = "The Sovereign of mankind,",
+                    translationMalay = "Yang Menguasai sekalian manusia,",
+                    tajwidRuleHighlight = "Makhraj of Lam and Kaf"
+                ),
+                Verse(
+                    id = "114:3",
+                    surahNumber = 114,
+                    verseNumber = 3,
+                    textArabic = "إِلَٰهِ النَّاسِ",
+                    transliteration = "Ilāhin-nās",
+                    translationEnglish = "The God of mankind,",
+                    translationMalay = "Tuhan yang berhak disembah oleh sekalian manusia,",
+                    tajwidRuleHighlight = "Mad Tabee'i on إِلَٰهِ"
+                ),
+                Verse(
+                    id = "114:4",
+                    surahNumber = 114,
+                    verseNumber = 4,
+                    textArabic = "مِن شَرِّ الْوَسْوَاسِ الْخَنَّاسِ",
+                    transliteration = "Min sharril-waswāsil-khannās",
+                    translationEnglish = "From the evil of the retreating whisperer -",
+                    translationMalay = "Dari kejahatan pembisik yang timbul tenggelam,",
+                    tajwidRuleHighlight = "Ikhfa Haqiqi on مِن شَرِّ"
+                ),
+                Verse(
+                    id = "114:5",
+                    surahNumber = 114,
+                    verseNumber = 5,
+                    textArabic = "الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ",
+                    transliteration = "Alladhī yuwaswisu fī ṣudūrin-nās",
+                    translationEnglish = "Who whispers into the breasts of mankind -",
+                    translationMalay = "Yang melemparkan bisikan dan hasutannya ke dalam dada manusia,",
+                    tajwidRuleHighlight = "Makhraj of Ṣad in صُدُورِ"
+                ),
+                Verse(
+                    id = "114:6",
+                    surahNumber = 114,
+                    verseNumber = 6,
+                    textArabic = "مِنَ الْجِنَّةِ وَالنَّاسِ",
+                    transliteration = "Minal-jinnati wan-nās",
+                    translationEnglish = "From among the jinn and mankind.\"",
+                    translationMalay = "(Iaitu pembisik dan penghasut) dari kalangan jin dan manusia.",
+                    tajwidRuleHighlight = "Ghunnah Mushaddadah on الْجِنَّةِ and النَّاسِ"
+                )
+            )
+        ),
+        Surah(3, "آلِ عِمْرَان", "Ali 'Imran", "Family of Imran", "Medinan", 200),
+        Surah(4, "النِّسَاء", "An-Nisa", "The Women", "Medinan", 176),
+        Surah(5, "المَائِدَة", "Al-Ma'idah", "The Table Spread", "Medinan", 120),
+        Surah(18, "الكَهْف", "Al-Kahf", "The Cave", "Meccan", 110),
+        Surah(36, "يس", "Ya-Sin", "Ya-Sin", "Meccan", 83),
+        Surah(55, "الرَّحْمَٰن", "Ar-Rahman", "The Beneficent", "Medinan", 78),
+        Surah(56, "الوَاقِعَة", "Al-Waqi'ah", "The Inevitable", "Meccan", 96),
+        Surah(67, "المُلْك", "Al-Mulk", "The Sovereignty", "Meccan", 30)
+    )
+
+    val juzList: List<JuzInfo> = listOf(
+        JuzInfo(1, "Al-Fatihah", 1, 148),
+        JuzInfo(2, "Al-Baqarah", 142, 111),
+        JuzInfo(3, "Al-Baqarah", 253, 113),
+        JuzInfo(4, "Ali 'Imran", 93, 131),
+        JuzInfo(5, "An-Nisa", 24, 124),
+        JuzInfo(28, "Al-Mujadila", 1, 137),
+        JuzInfo(29, "Al-Mulk", 1, 175),
+        JuzInfo(30, "An-Naba", 1, 564)
+    )
+}
