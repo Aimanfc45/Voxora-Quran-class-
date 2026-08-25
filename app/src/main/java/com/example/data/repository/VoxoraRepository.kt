@@ -1,12 +1,16 @@
 package com.example.data.repository
 
+import com.example.data.api.IQuranApiService
+import com.example.data.api.QuranApiService
+import com.example.data.audio.QuranAudioPlayerEngine
 import com.example.data.mock.*
 import com.example.data.model.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
 class VoxoraRepository(
-    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob()),
+    private val quranApiService: IQuranApiService = QuranApiService()
 ) {
 
     // ----------------------------------------------------
@@ -59,24 +63,43 @@ class VoxoraRepository(
     val lastReadPosition: StateFlow<String> = _lastReadPosition.asStateFlow()
 
     // ----------------------------------------------------
-    // Quran Audio Engine State
+    // Quran Audio Engine State (Verified Audio CDN)
     // ----------------------------------------------------
-    private val _audioState = MutableStateFlow(
-        QuranAudioState(
-            isPlaying = false,
-            surahNumber = 1,
-            verseNumber = 1,
-            currentPositionSeconds = 0f,
-            totalDurationSeconds = 6f
-        )
+    private val audioEngine: QuranAudioPlayerEngine = QuranAudioPlayerEngine(
+        coroutineScope = coroutineScope,
+        onVerseChangedListener = { surahNumber, verseNumber ->
+            val s = _surahs.value.find { it.number == surahNumber } ?: _selectedSurah.value
+            if (_selectedSurah.value.number != surahNumber) {
+                _selectedSurah.value = s
+            }
+            val vIndex = s.verses.indexOfFirst { it.verseNumber == verseNumber }
+            if (vIndex >= 0) {
+                _currentVerseIndex.value = vIndex
+            }
+            updateLastReadPosition()
+        },
+        getSurahVerseCount = { sNum ->
+            _surahs.value.find { it.number == sNum }?.totalVerses ?: 7
+        }
     )
-    val audioState: StateFlow<QuranAudioState> = _audioState.asStateFlow()
+
+    val audioState: StateFlow<QuranAudioState> = audioEngine.audioState
 
     // Backward-compatible flow for reader/home
-    val isPlayingAudio: StateFlow<Boolean> = _audioState.map { it.isPlaying }
+    val isPlayingAudio: StateFlow<Boolean> = audioEngine.audioState.map { it.isPlaying }
         .stateIn(coroutineScope, SharingStarted.Eagerly, false)
 
-    private var audioPlaybackJob: Job? = null
+    init {
+        coroutineScope.launch {
+            val catalogResult = quranApiService.getSurahList()
+            if (catalogResult.isSuccess) {
+                val list = catalogResult.getOrNull() ?: emptyList()
+                if (list.isNotEmpty()) {
+                    _surahs.value = list
+                }
+            }
+        }
+    }
 
     // ----------------------------------------------------
     // Classes State
@@ -181,18 +204,29 @@ class VoxoraRepository(
         _selectedSurah.value = found
         _currentVerseIndex.value = 0
         updateLastReadPosition()
-        updateAudioForCurrentSelection(found.number, 1)
+
+        if (found.verses.isEmpty()) {
+            coroutineScope.launch {
+                val detailResult = quranApiService.getSurahDetail(surahNumber)
+                if (detailResult.isSuccess) {
+                    val fullSurah = detailResult.getOrNull()
+                    if (fullSurah != null) {
+                        _selectedSurah.value = fullSurah
+                        _surahs.update { list ->
+                            list.map { if (it.number == surahNumber) fullSurah else it }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun selectJuz(juzNumber: Int) {
         val juz = _juzList.value.find { it.number == juzNumber } ?: _juzList.value.first()
-        val surah = _surahs.value.find { it.number == juz.startSurahNumber }
-            ?: MockQuranData.surahList.first()
-        _selectedSurah.value = surah
+        selectSurah(juz.startSurahNumber)
         val verseIndex = (juz.startVerse - 1).coerceAtLeast(0)
-        _currentVerseIndex.value = if (verseIndex < surah.verses.size) verseIndex else 0
+        _currentVerseIndex.value = verseIndex
         updateLastReadPosition()
-        updateAudioForCurrentSelection(surah.number, juz.startVerse)
     }
 
     fun jumpToVerse(verseNumber: Int) {
@@ -201,7 +235,6 @@ class VoxoraRepository(
         if (targetIndex >= 0) {
             _currentVerseIndex.value = targetIndex
             updateLastReadPosition()
-            updateAudioForCurrentSelection(_selectedSurah.value.number, verseNumber)
         }
     }
 
@@ -210,8 +243,6 @@ class VoxoraRepository(
         if (verses.isNotEmpty() && _currentVerseIndex.value < verses.size - 1) {
             _currentVerseIndex.update { it + 1 }
             updateLastReadPosition()
-            val verse = verses[_currentVerseIndex.value]
-            updateAudioForCurrentSelection(_selectedSurah.value.number, verse.verseNumber)
         }
     }
 
@@ -219,8 +250,6 @@ class VoxoraRepository(
         if (_currentVerseIndex.value > 0) {
             _currentVerseIndex.update { it - 1 }
             updateLastReadPosition()
-            val verse = _selectedSurah.value.verses[_currentVerseIndex.value]
-            updateAudioForCurrentSelection(_selectedSurah.value.number, verse.verseNumber)
         }
     }
 
@@ -229,8 +258,6 @@ class VoxoraRepository(
         if (index in 0..max) {
             _currentVerseIndex.value = index
             updateLastReadPosition()
-            val verse = _selectedSurah.value.verses[index]
-            updateAudioForCurrentSelection(_selectedSurah.value.number, verse.verseNumber)
         }
     }
 
@@ -244,21 +271,6 @@ class VoxoraRepository(
     // QURAN AUDIO PLAYER ENGINE (Clean Architecture)
     // ====================================================
 
-    private fun updateAudioForCurrentSelection(surahNum: Int, verseNum: Int) {
-        val verses = _selectedSurah.value.verses
-        val currentVerse = verses.find { it.verseNumber == verseNum } ?: verses.firstOrNull()
-        val duration = currentVerse?.audioDurationSeconds?.toFloat() ?: 6f
-
-        _audioState.update {
-            it.copy(
-                surahNumber = surahNum,
-                verseNumber = verseNum,
-                currentPositionSeconds = 0f,
-                totalDurationSeconds = duration
-            )
-        }
-    }
-
     fun playVerseAudio(surahNumber: Int, verseNumber: Int) {
         val surah = _surahs.value.find { it.number == surahNumber } ?: _selectedSurah.value
         if (_selectedSurah.value.number != surahNumber) {
@@ -268,23 +280,12 @@ class VoxoraRepository(
         if (verseIndex >= 0) {
             _currentVerseIndex.value = verseIndex
         }
-        val targetVerse = surah.verses.find { it.verseNumber == verseNumber }
-        val duration = targetVerse?.audioDurationSeconds?.toFloat() ?: 6f
-
-        _audioState.update {
-            it.copy(
-                isPlaying = true,
-                surahNumber = surahNumber,
-                verseNumber = verseNumber,
-                currentPositionSeconds = 0f,
-                totalDurationSeconds = duration
-            )
-        }
-        startAudioTicker()
+        updateLastReadPosition()
+        audioEngine.playVerse(surahNumber, verseNumber)
     }
 
     fun toggleAudioPlayback() {
-        if (_audioState.value.isPlaying) {
+        if (audioState.value.isPlaying) {
             pauseAudio()
         } else {
             val currentV = _selectedSurah.value.verses.getOrNull(_currentVerseIndex.value)?.verseNumber ?: 1
@@ -293,109 +294,48 @@ class VoxoraRepository(
     }
 
     fun pauseAudio() {
-        audioPlaybackJob?.cancel()
-        _audioState.update { it.copy(isPlaying = false) }
+        audioEngine.pause()
+    }
+
+    fun resumeAudio() {
+        audioEngine.resume()
     }
 
     fun stopAudio() {
-        audioPlaybackJob?.cancel()
-        _audioState.update {
-            it.copy(
-                isPlaying = false,
-                currentPositionSeconds = 0f
-            )
-        }
+        audioEngine.stop()
     }
 
     fun seekAudioTo(positionSeconds: Float) {
-        val clamped = positionSeconds.coerceIn(0f, _audioState.value.totalDurationSeconds)
-        _audioState.update { it.copy(currentPositionSeconds = clamped) }
+        audioEngine.seekTo(positionSeconds)
     }
 
     fun setAudioPlaybackSpeed(speed: Float) {
-        _audioState.update { it.copy(playbackSpeed = speed) }
+        audioEngine.setPlaybackSpeed(speed)
     }
 
     fun setAudioVolume(volume: Float) {
-        _audioState.update { it.copy(volume = volume.coerceIn(0f, 1f)) }
+        audioEngine.setVolume(volume)
     }
 
     fun setAudioRepeatMode(mode: AudioRepeatMode) {
-        _audioState.update { it.copy(repeatMode = mode) }
+        audioEngine.setRepeatMode(mode)
     }
 
     fun toggleAutoNextVerse(enabled: Boolean) {
-        _audioState.update { it.copy(autoNextVerse = enabled) }
+        audioEngine.toggleAutoNext(enabled)
     }
 
     fun setAudioReciter(reciter: String) {
-        _audioState.update { it.copy(reciterName = reciter) }
-        _quranSettings.update { it.copy(reciterName = reciter) }
+        audioEngine.setReciter(reciter)
+        _quranSettings.update { it.copy(reciterName = reciter, selectedReciter = reciter) }
     }
 
-    private fun startAudioTicker() {
-        audioPlaybackJob?.cancel()
-        audioPlaybackJob = coroutineScope.launch {
-            while (isActive) {
-                delay(200)
-                val current = _audioState.value
-                if (!current.isPlaying) break
-
-                val speed = current.playbackSpeed
-                val newPos = current.currentPositionSeconds + (0.2f * speed)
-
-                if (newPos >= current.totalDurationSeconds) {
-                    handleAudioVerseCompletion()
-                } else {
-                    _audioState.update { it.copy(currentPositionSeconds = newPos) }
-                }
-            }
-        }
+    fun nextAudioVerse() {
+        audioEngine.nextVerse()
     }
 
-    private fun handleAudioVerseCompletion() {
-        val current = _audioState.value
-        val surah = _selectedSurah.value
-        val verses = surah.verses
-
-        when (current.repeatMode) {
-            AudioRepeatMode.REPEAT_VERSE -> {
-                // Repeat same verse from 0s
-                _audioState.update { it.copy(currentPositionSeconds = 0f) }
-            }
-            AudioRepeatMode.REPEAT_SURAH -> {
-                val currentIndex = verses.indexOfFirst { it.verseNumber == current.verseNumber }
-                if (currentIndex in 0 until verses.size - 1) {
-                    val nextVerse = verses[currentIndex + 1]
-                    playVerseAudio(surah.number, nextVerse.verseNumber)
-                } else {
-                    // Loop back to start of Surah
-                    val firstVerse = verses.firstOrNull()?.verseNumber ?: 1
-                    playVerseAudio(surah.number, firstVerse)
-                }
-            }
-            AudioRepeatMode.REPEAT_RANGE -> {
-                val nextNum = current.verseNumber + 1
-                if (nextNum <= current.repeatRangeEnd && verses.any { it.verseNumber == nextNum }) {
-                    playVerseAudio(surah.number, nextNum)
-                } else {
-                    playVerseAudio(surah.number, current.repeatRangeStart)
-                }
-            }
-            AudioRepeatMode.OFF -> {
-                if (current.autoNextVerse) {
-                    val currentIndex = verses.indexOfFirst { it.verseNumber == current.verseNumber }
-                    if (currentIndex in 0 until verses.size - 1) {
-                        val nextVerse = verses[currentIndex + 1]
-                        playVerseAudio(surah.number, nextVerse.verseNumber)
-                    } else {
-                        stopAudio()
-                    }
-                } else {
-                    stopAudio()
-                }
-            }
-        }
+    fun previousAudioVerse() {
+        audioEngine.previousVerse()
     }
 
     // ====================================================
@@ -784,7 +724,7 @@ class VoxoraRepository(
 
     fun updateSelectedReciter(reciter: String) {
         _quranSettings.update { it.copy(selectedReciter = reciter, reciterName = reciter) }
-        _audioState.update { it.copy(reciterName = reciter) }
+        audioEngine.setReciter(reciter)
     }
 
     fun updateUserProfile(name: String, bio: String, country: String, level: String = "") {

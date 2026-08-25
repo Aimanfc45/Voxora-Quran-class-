@@ -9,6 +9,8 @@ enum class AudioRepeatMode {
 
 data class QuranAudioState(
     val isPlaying: Boolean = false,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null,
     val surahNumber: Int = 1,
     val verseNumber: Int = 1,
     val currentPositionSeconds: Float = 0f,
@@ -19,7 +21,8 @@ data class QuranAudioState(
     val autoNextVerse: Boolean = true,
     val reciterName: String = "Mishary Rashid Alafasy",
     val repeatRangeStart: Int = 1,
-    val repeatRangeEnd: Int = 7
+    val repeatRangeEnd: Int = 7,
+    val audioUrl: String = ""
 )
 
 data class Surah(

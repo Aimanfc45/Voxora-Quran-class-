@@ -328,8 +328,8 @@ fun ProfileSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("About Voxora Quran Class", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
-                            Text("Version 0.1.0 (Phase 1)", style = MaterialTheme.typography.labelSmall, color = Emerald700)
+                            Text("About Voxora Quran", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
+                            Text("Version 0.1.0 (Phase 1) • Learn. Recite. Grow.", style = MaterialTheme.typography.labelSmall, color = Emerald700)
                         }
                         Icon(imageVector = Icons.Default.Info, contentDescription = null, tint = Emerald700)
                     }
@@ -431,12 +431,14 @@ fun ProfileSettingsScreen(
     if (showAboutDialog) {
         AlertDialog(
             onDismissRequest = { showAboutDialog = false },
-            title = { Text("Voxora Quran Class") },
+            title = { Text("Voxora Quran") },
             text = {
                 Column {
                     Text("Version 0.1.0 (Phase 1 Major Update)", fontWeight = FontWeight.Bold, color = Emerald800)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Learn. Recite. Grow.", fontWeight = FontWeight.SemiBold, color = GoldDark)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Voxora is a modern Quran recitation & live learning platform empowering students worldwide to master Tajwid, Hafazan, and Qiraat with certified teachers.")
+                    Text("Voxora Quran is a modern Quran recitation & live learning platform empowering students worldwide to master Tajwid, Hafazan, and Qiraat with certified teachers.")
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Designed with dark emerald aesthetics and gold accents.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

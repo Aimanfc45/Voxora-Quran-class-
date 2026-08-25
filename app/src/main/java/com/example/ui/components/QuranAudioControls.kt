@@ -51,14 +51,52 @@ fun QuranMiniAudioPlayer(
                 audioState.currentPositionSeconds / audioState.totalDurationSeconds
             } else 0f
 
-            LinearProgressIndicator(
-                progress = { progress.coerceIn(0f, 1f) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.dp),
-                color = GoldPrimary,
-                trackColor = Emerald800
-            )
+            if (audioState.isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp),
+                    color = GoldPrimary,
+                    trackColor = Emerald800
+                )
+            } else {
+                LinearProgressIndicator(
+                    progress = { progress.coerceIn(0f, 1f) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp),
+                    color = GoldPrimary,
+                    trackColor = Emerald800
+                )
+            }
+
+            // Error notice banner if any
+            if (audioState.errorMessage != null) {
+                Surface(
+                    color = Color(0xFF7F1D1D),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = audioState.errorMessage,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Tap to Retry",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = GoldLight,
+                            modifier = Modifier.clickable { onTogglePlay() }
+                        )
+                    }
+                }
+            }
 
             Row(
                 modifier = Modifier
@@ -78,24 +116,32 @@ fun QuranMiniAudioPlayer(
                             .background(GoldPrimary.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = if (audioState.isPlaying) Icons.Default.GraphicEq else Icons.Default.VolumeUp,
-                            contentDescription = null,
-                            tint = GoldPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        if (audioState.isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = GoldPrimary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = if (audioState.isPlaying) Icons.Default.GraphicEq else Icons.Default.VolumeUp,
+                                contentDescription = null,
+                                tint = GoldPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(12.dp))
 
                     Column {
                         Text(
-                            text = "$surahName • Verse ${audioState.verseNumber}",
+                            text = "$surahName • Ayah ${audioState.verseNumber}",
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                             color = Color.White
                         )
                         Text(
-                            text = "${audioState.reciterName} (${audioState.playbackSpeed}x)",
+                            text = "${audioState.reciterName} • ${formatTime(audioState.currentPositionSeconds)} / ${formatTime(audioState.totalDurationSeconds)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = Emerald200
                         )
@@ -105,7 +151,9 @@ fun QuranMiniAudioPlayer(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = onPreviousVerse,
-                        modifier = Modifier.size(36.dp).testTag("mini_player_prev_button")
+                        modifier = Modifier
+                            .size(36.dp)
+                            .testTag("mini_player_prev_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.SkipPrevious,
@@ -122,16 +170,26 @@ fun QuranMiniAudioPlayer(
                             .background(GoldPrimary)
                             .testTag("mini_player_play_button")
                     ) {
-                        Icon(
-                            imageVector = if (audioState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (audioState.isPlaying) "Pause" else "Play",
-                            tint = Emerald950
-                        )
+                        if (audioState.isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Emerald950,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = if (audioState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (audioState.isPlaying) "Pause" else "Play",
+                                tint = Emerald950
+                            )
+                        }
                     }
 
                     IconButton(
                         onClick = onNextVerse,
-                        modifier = Modifier.size(36.dp).testTag("mini_player_next_button")
+                        modifier = Modifier
+                            .size(36.dp)
+                            .testTag("mini_player_next_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.SkipNext,
@@ -142,7 +200,9 @@ fun QuranMiniAudioPlayer(
 
                     IconButton(
                         onClick = onClose,
-                        modifier = Modifier.size(32.dp).testTag("mini_player_close_button")
+                        modifier = Modifier
+                            .size(32.dp)
+                            .testTag("mini_player_close_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
@@ -166,10 +226,9 @@ fun QuranAudioDetailBottomSheet(
 ) {
     val reciters = listOf(
         "Mishary Rashid Alafasy",
-        "Abdul Basit 'Abdus-Samad",
-        "Mahmoud Khalil Al-Husary",
-        "Saad Al-Ghamdi",
-        "Maher Al-Muaiqly"
+        "Abdul Basit Abdul Samad",
+        "Mahmoud Khalil Al-Hussary",
+        "Saad Al-Ghamdi"
     )
 
     var showReciterPicker by remember { mutableStateOf(false) }
@@ -194,7 +253,7 @@ fun QuranAudioDetailBottomSheet(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "$surahName — Verse ${audioState.verseNumber}",
+                text = "$surahName — Ayah ${audioState.verseNumber}",
                 style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                 color = Color.White
             )
@@ -230,6 +289,36 @@ fun QuranAudioDetailBottomSheet(
                         tint = Emerald200,
                         modifier = Modifier.size(16.dp)
                     )
+                }
+            }
+
+            // Error notice banner
+            if (audioState.errorMessage != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Surface(
+                    color = Color(0xFF7F1D1D),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = audioState.errorMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = { repository.resumeAudio() },
+                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                        ) {
+                            Text("Retry", color = Emerald950, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
 
@@ -301,7 +390,7 @@ fun QuranAudioDetailBottomSheet(
 
                 // Previous Verse
                 IconButton(
-                    onClick = { repository.previousVerse() },
+                    onClick = { repository.previousAudioVerse() },
                     modifier = Modifier
                         .size(48.dp)
                         .testTag("audio_prev_button")
@@ -324,16 +413,24 @@ fun QuranAudioDetailBottomSheet(
                         .size(64.dp)
                         .testTag("audio_play_pause_button")
                 ) {
-                    Icon(
-                        imageVector = if (audioState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (audioState.isPlaying) "Pause" else "Play",
-                        modifier = Modifier.size(36.dp)
-                    )
+                    if (audioState.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(28.dp),
+                            color = Emerald950,
+                            strokeWidth = 3.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (audioState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (audioState.isPlaying) "Pause" else "Play",
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
                 }
 
                 // Next Verse
                 IconButton(
-                    onClick = { repository.nextVerse() },
+                    onClick = { repository.nextAudioVerse() },
                     modifier = Modifier
                         .size(48.dp)
                         .testTag("audio_next_button")
@@ -509,7 +606,7 @@ fun QuranAudioDetailBottomSheet(
 }
 
 private fun formatTime(seconds: Float): String {
-    val totalSec = seconds.toInt()
+    val totalSec = seconds.toInt().coerceAtLeast(0)
     val min = totalSec / 60
     val sec = totalSec % 60
     return String.format("%02d:%02d", min, sec)

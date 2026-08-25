@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Voxora Quran Class"
+rootProject.name = "Voxora Quran"
 
 include(":app")
