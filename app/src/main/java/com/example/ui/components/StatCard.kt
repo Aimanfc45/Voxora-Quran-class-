@@ -103,6 +103,23 @@ fun CategoryPill(
 }
 
 @Composable
+fun ChoicePill(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    testTag: String = "choice_pill_$label"
+) {
+    CategoryPill(
+        label = label,
+        isSelected = isSelected,
+        onClick = onClick,
+        modifier = modifier,
+        testTag = testTag
+    )
+}
+
+@Composable
 fun TajwidRuleBadge(
     ruleText: String,
     ruleColor: Color = GoldPrimary,

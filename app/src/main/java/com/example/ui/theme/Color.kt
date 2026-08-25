@@ -3,6 +3,7 @@ package com.example.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // Primary Emerald Palette
+val Emerald950 = Color(0xFF021B19)
 val Emerald900 = Color(0xFF042F2C)
 val Emerald800 = Color(0xFF064E3B)
 val Emerald700 = Color(0xFF065F46)
@@ -10,6 +11,7 @@ val Emerald600 = Color(0xFF0F5132)
 val Emerald500 = Color(0xFF10B981)
 val Emerald400 = Color(0xFF34D399)
 val Emerald300 = Color(0xFF6EE7B7)
+val Emerald200 = Color(0xFFA7F3D0)
 val Emerald100 = Color(0xFFD1FAE5)
 val Emerald50 = Color(0xFFECFDF5)
 

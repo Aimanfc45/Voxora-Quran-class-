@@ -6,6 +6,7 @@ data class CommunityGroup(
     val category: String,
     val description: String,
     val memberCount: Int,
+    val onlineMembersCount: Int = 12,
     val isJoined: Boolean = false,
     val announcements: List<String> = emptyList(),
     val iconEmoji: String = "📖"
@@ -26,7 +27,9 @@ data class CommunityPost(
     val commentsCount: Int,
     val comments: List<PostComment> = emptyList(),
     val isSaved: Boolean = false,
-    val isTeacherPost: Boolean = false
+    val isTeacherPost: Boolean = false,
+    val isFollowingAuthor: Boolean = false,
+    val category: String = "General" // "Reflection", "Question", "Tajwid Tip", "Hafazan"
 )
 
 data class PostComment(
@@ -40,7 +43,7 @@ data class PostComment(
 data class UserProfile(
     val name: String = "Ahmed Al-Farsi",
     val username: String = "@ahmed_alfarsi",
-    val email: String = "ahmed.farsi@example.com",
+    val email: String = "ahmed.farsi@voxora.app",
     val country: String = "Malaysia",
     val flagEmoji: String = "🇲🇾",
     val languages: List<String> = listOf("English", "Bahasa Melayu", "Arabic"),

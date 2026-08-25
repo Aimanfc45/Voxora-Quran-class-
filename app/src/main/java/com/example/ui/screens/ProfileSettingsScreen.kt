@@ -39,6 +39,10 @@ fun ProfileSettingsScreen(
     var editName by remember { mutableStateOf(user.name) }
     var editBio by remember { mutableStateOf(user.bio) }
     var editCountry by remember { mutableStateOf(user.country) }
+    var editLevel by remember { mutableStateOf(user.learningLevel) }
+
+    var showAboutDialog by remember { mutableStateOf(false) }
+    var showReciterDialog by remember { mutableStateOf(false) }
 
     // Settings toggles
     var dailyClassReminder by remember { mutableStateOf(true) }
@@ -137,280 +141,242 @@ fun ProfileSettingsScreen(
                                 editName = user.name
                                 editBio = user.bio
                                 editCountry = user.country
+                                editLevel = user.learningLevel
                                 showEditProfileDialog = true
                             },
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("edit_profile_button")
+                                .height(44.dp)
+                                .testTag("edit_profile_btn")
                         ) {
-                            Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Edit Profile Details")
+                            Text("Edit Profile Info")
                         }
                     }
                 }
             }
 
-            // 2. Profile Quick Stats
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    QuickStatItem(
-                        title = "Lessons Done",
-                        value = "${user.lessonsCompleted}",
-                        icon = Icons.Default.CheckCircle,
-                        modifier = Modifier.weight(1f)
-                    )
-                    QuickStatItem(
-                        title = "Streak",
-                        value = "${user.learningStreakDays}d",
-                        icon = Icons.Default.Bolt,
-                        badgeColor = GoldContainer,
-                        contentColor = GoldDark,
-                        modifier = Modifier.weight(1f)
-                    )
-                    QuickStatItem(
-                        title = "Hours",
-                        value = "${user.hoursSpent}h",
-                        icon = Icons.Default.Timer,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            // 3. Quran & Recitation Settings
-            item {
-                SettingsSectionHeader(title = "Quran Recitation & Display")
-            }
-
+            // 2. Quran Reading Preferences
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = CardDefaults.outlinedCardBorder()
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(18.dp)) {
                         Text(
-                            text = "Selected Qari (Reciter)",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                            text = "Quran Reader Preferences",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        listOf(
-                            "Mishary Rashid Alafasy",
-                            "Abdul Basit Abdul Samad",
-                            "Mahmoud Khalil Al-Husary"
-                        ).forEach { reciter ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        repository.setReciterName(reciter)
-                                        onShowSnackbar("Reciter set to $reciter")
-                                    }
-                                    .padding(vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = quranSettings.reciterName == reciter,
-                                    onClick = { repository.setReciterName(reciter) }
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(reciter, style = MaterialTheme.typography.bodyMedium)
-                            }
-                        }
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                        Divider(modifier = Modifier.padding(vertical = 12.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("English Translation", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
-                                Text("Show Sahih International verses", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Switch(
-                                checked = quranSettings.showTranslation,
-                                onCheckedChange = { repository.toggleTranslation(it) }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("Phonetic Transliteration", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
-                                Text("Helps with pronunciation guides", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Switch(
-                                checked = quranSettings.showTransliteration,
-                                onCheckedChange = { repository.toggleTransliteration(it) }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 4. Notifications & Classroom Preferences
-            item {
-                SettingsSectionHeader(title = "Classroom & Notifications")
-            }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("Live Class Reminders", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
-                                Text("Notify 15 mins before sessions", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Switch(checked = dailyClassReminder, onCheckedChange = { dailyClassReminder = it })
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("Daily Recitation Streak Reminder", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
-                                Text("Gentle reminder after Maghrib", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Switch(checked = streakNotification, onCheckedChange = { streakNotification = it })
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("Mute Mic on Entering Live Class", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
-                                Text("Avoid classroom background noise", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Switch(checked = autoMicMuteOnJoin, onCheckedChange = { autoMicMuteOnJoin = it })
-                        }
-                    }
-                }
-            }
-
-            // 5. About VOXORA & Version Info
-            item {
-                SettingsSectionHeader(title = "About VOXORA QURAN CLASS")
-            }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                        // Font size slider
                         Text(
-                            text = "VOXORA QURAN CLASS",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Emerald700
-                        )
-                        Text(
-                            text = "Learn. Recite. Grow.",
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                            color = GoldDark
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Version 0.0.1 (Phase 1, Update 1)\nA modern, professional Islamic education platform connecting learners, teachers, and global study circles.",
+                            text = "Arabic Font Size: ${quranSettings.arabicFontSizeSp.toInt()}sp",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Slider(
+                            value = quranSettings.arabicFontSizeSp,
+                            onValueChange = { repository.updateArabicFontSize(it) },
+                            valueRange = 20f..38f,
+                            colors = SliderDefaults.colors(thumbColor = Emerald700, activeTrackColor = Emerald700)
+                        )
 
+                        // English translation toggle
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Show English Translation", style = MaterialTheme.typography.bodyMedium)
+                            Switch(
+                                checked = quranSettings.showEnglishTranslation,
+                                onCheckedChange = { repository.toggleEnglishTranslation(it) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Emerald700)
+                            )
+                        }
+
+                        // Word-by-word toggle
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Word-by-word Breakdown", style = MaterialTheme.typography.bodyMedium)
+                            Switch(
+                                checked = quranSettings.showWordByWord,
+                                onCheckedChange = { repository.toggleWordByWord(it) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Emerald700)
+                            )
+                        }
+
+                        // Reciter picker
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showReciterDialog = true }
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Default Qari / Reciter", style = MaterialTheme.typography.bodyMedium)
+                                Text(quranSettings.selectedReciter, style = MaterialTheme.typography.bodySmall, color = Emerald700)
+                            }
+                            Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+
+            // 3. Live Class & Notifications Settings
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = CardDefaults.outlinedCardBorder()
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Text(
+                            text = "Class & Notifications",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        )
                         Spacer(modifier = Modifier.height(12.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            TextButton(onClick = { onShowSnackbar("Terms of Service: VOXORA community guidelines.") }) {
-                                Text("Terms of Service", fontSize = 12.sp)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Daily Class Reminders", style = MaterialTheme.typography.bodyMedium)
+                                Text("15 minutes before scheduled class", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            TextButton(onClick = { onShowSnackbar("Privacy Policy: Your data and privacy are fully protected.") }) {
-                                Text("Privacy Policy", fontSize = 12.sp)
-                            }
+                            Switch(
+                                checked = dailyClassReminder,
+                                onCheckedChange = {
+                                    dailyClassReminder = it
+                                    onShowSnackbar(if (it) "Class reminders enabled" else "Class reminders disabled")
+                                },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Emerald700)
+                            )
                         }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Streak & Goal Alerts", style = MaterialTheme.typography.bodyMedium)
+                                Text("Daily motivation to recite and practice", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Switch(
+                                checked = streakNotification,
+                                onCheckedChange = {
+                                    streakNotification = it
+                                    onShowSnackbar(if (it) "Streak alerts enabled" else "Streak alerts disabled")
+                                },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Emerald700)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Auto-Mute on Join", style = MaterialTheme.typography.bodyMedium)
+                                Text("Keep microphone muted when entering classroom", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Switch(
+                                checked = autoMicMuteOnJoin,
+                                onCheckedChange = { autoMicMuteOnJoin = it },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Emerald700)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 4. App Info & Version
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showAboutDialog = true },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = CardDefaults.outlinedCardBorder()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("About Voxora Quran Class", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
+                            Text("Version 0.1.0 (Phase 1)", style = MaterialTheme.typography.labelSmall, color = Emerald700)
+                        }
+                        Icon(imageVector = Icons.Default.Info, contentDescription = null, tint = Emerald700)
                     }
                 }
             }
         }
     }
 
-    // Edit Profile Modal Dialog
+    // Edit Profile Dialog
     if (showEditProfileDialog) {
         AlertDialog(
             onDismissRequest = { showEditProfileDialog = false },
             title = {
-                Text(
-                    text = "Edit Profile",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = Emerald700
-                )
+                Text("Edit Profile", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
             },
             text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
                         value = editName,
                         onValueChange = { editName = it },
                         label = { Text("Full Name") },
-                        modifier = Modifier.fillMaxWidth().testTag("edit_name_field"),
-                        singleLine = true
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = editBio,
                         onValueChange = { editBio = it },
-                        label = { Text("Bio / Goal") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        label = { Text("Short Bio / Goal") },
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = editCountry,
                         onValueChange = { editCountry = it },
                         label = { Text("Country") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        if (editName.isNotBlank()) {
-                            repository.updateProfile(editName, editBio, editCountry)
-                            onShowSnackbar("Profile updated!")
-                            showEditProfileDialog = false
-                        }
+                        repository.updateUserProfile(editName, editBio, editCountry, editLevel)
+                        showEditProfileDialog = false
+                        onShowSnackbar("Profile updated!")
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Emerald700),
-                    modifier = Modifier.testTag("save_profile_button")
+                    colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
                 ) {
                     Text("Save Changes")
                 }
@@ -422,14 +388,64 @@ fun ProfileSettingsScreen(
             }
         )
     }
-}
 
-@Composable
-private fun SettingsSectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-        color = Emerald800,
-        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-    )
+    // Reciter Dialog
+    if (showReciterDialog) {
+        val reciters = listOf("Mishary Rashid Alafasy", "Abdul Basit Abdul Samad", "Mahmoud Khalil Al-Hussary", "Saad Al-Ghamdi")
+        AlertDialog(
+            onDismissRequest = { showReciterDialog = false },
+            title = { Text("Select Default Qari") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    reciters.forEach { r ->
+                        val isSelected = quranSettings.selectedReciter == r
+                        Surface(
+                            onClick = {
+                                repository.updateSelectedReciter(r)
+                                showReciterDialog = false
+                                onShowSnackbar("Reciter changed to $r")
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected) Emerald100 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = r + if (isSelected) "  ✓" else "",
+                                modifier = Modifier.padding(12.dp),
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) Emerald900 else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showReciterDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // About Dialog
+    if (showAboutDialog) {
+        AlertDialog(
+            onDismissRequest = { showAboutDialog = false },
+            title = { Text("Voxora Quran Class") },
+            text = {
+                Column {
+                    Text("Version 0.1.0 (Phase 1 Major Update)", fontWeight = FontWeight.Bold, color = Emerald800)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Voxora is a modern Quran recitation & live learning platform empowering students worldwide to master Tajwid, Hafazan, and Qiraat with certified teachers.")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Designed with dark emerald aesthetics and gold accents.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showAboutDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = Emerald700)) {
+                    Text("JazakAllahu Khair")
+                }
+            }
+        )
+    }
 }

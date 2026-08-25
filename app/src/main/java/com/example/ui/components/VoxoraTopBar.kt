@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -14,7 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +28,7 @@ import com.example.ui.theme.GoldPrimary
 fun VoxoraHeaderBar(
     title: String,
     subtitle: String? = null,
+    unreadCount: Int = 0,
     onSearchClick: (() -> Unit)? = null,
     onNotificationClick: (() -> Unit)? = null,
     onProfileClick: (() -> Unit)? = null,
@@ -91,16 +90,24 @@ fun VoxoraHeaderBar(
                     onClick = onNotificationClick,
                     modifier = Modifier.testTag("topbar_notification_button")
                 ) {
-                    BadgedBox(
-                        badge = {
-                            Badge(
-                                containerColor = GoldPrimary,
-                                contentColor = Emerald900
-                            ) {
-                                Text("2", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    if (unreadCount > 0) {
+                        BadgedBox(
+                            badge = {
+                                Badge(
+                                    containerColor = GoldPrimary,
+                                    contentColor = Emerald900
+                                ) {
+                                    Text("$unreadCount", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Notifications",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                    ) {
+                    } else {
                         Icon(
                             imageVector = Icons.Default.Notifications,
                             contentDescription = "Notifications",

@@ -14,9 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.model.Teacher
 import com.example.data.repository.VoxoraRepository
+import com.example.ui.components.NotificationCenterSheet
 import com.example.ui.components.QuickStatItem
 import com.example.ui.components.SubtleIslamicPattern
 import com.example.ui.components.VoxoraHeaderBar
@@ -56,6 +55,10 @@ fun HomeScreen(
     val liveClass by repository.liveClass.collectAsState()
     val teachers by repository.teachers.collectAsState()
     val groups by repository.communityGroups.collectAsState()
+    val unreadCount by repository.unreadNotificationsCount.collectAsState()
+
+    var showNotificationsSheet by remember { mutableStateOf(false) }
+    var showInspirationDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -63,8 +66,9 @@ fun HomeScreen(
             VoxoraHeaderBar(
                 title = "VOXORA",
                 subtitle = "Learn. Recite. Grow.",
-                onSearchClick = { onNavigateToQuran() },
-                onNotificationClick = { onShowSnackbar("You have 2 notifications: Upcoming Tajwid class in 15 mins!") },
+                unreadCount = unreadCount,
+                onSearchClick = onNavigateToQuran,
+                onNotificationClick = { showNotificationsSheet = true },
                 onProfileClick = onNavigateToProfile
             )
         }
@@ -143,7 +147,8 @@ fun HomeScreen(
                         // Daily Inspiration / Verse snippet
                         Surface(
                             shape = RoundedCornerShape(16.dp),
-                            color = Color.White.copy(alpha = 0.08f)
+                            color = Color.White.copy(alpha = 0.08f),
+                            modifier = Modifier.clickable { showInspirationDialog = true }
                         ) {
                             Row(
                                 modifier = Modifier
@@ -164,11 +169,13 @@ fun HomeScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = "\"And recite the Quran with measured recitation.\"",
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                        ),
                                         color = Color.White.copy(alpha = 0.95f)
                                     )
                                     Text(
-                                        text = "Surah Al-Muzzammil (73:4)",
+                                        text = "Surah Al-Muzzammil (73:4) • Tap for Reflection",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Emerald300
                                     )
@@ -298,7 +305,7 @@ fun HomeScreen(
                 }
             }
 
-            // 3. Quick Actions
+            // 3. Quick Actions Grid
             item {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
@@ -331,7 +338,7 @@ fun HomeScreen(
                             testTag = "quick_action_join_class"
                         )
                         QuickActionItem(
-                            title = "Find Teacher",
+                            title = "Find Ustaz",
                             icon = Icons.Outlined.PersonSearch,
                             color = Color(0xFF0369A1),
                             bgColor = Color(0xFFE0F2FE),
@@ -448,65 +455,19 @@ fun HomeScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Join Class", fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "Join Live",
+                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                                )
                             }
                         }
                     }
                 }
             }
 
-            // 5. Today's Learning Breakdown
+            // 5. Featured Teachers Carousel
             item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Today's Learning",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        TextButton(onClick = onNavigateToProgress) {
-                            Text("View All Stats", color = Emerald700)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    LearningProgressItem(
-                        title = "Quran Reading",
-                        subtitle = "Surah Al-Baqarah (Verses 1-10)",
-                        percent = progress.quranReadingPercent,
-                        color = Emerald600,
-                        icon = Icons.Default.AutoStories,
-                        onClick = onNavigateToQuran
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LearningProgressItem(
-                        title = "Tajwid Masterclass",
-                        subtitle = "Rules of Mad Asli & Far'i",
-                        percent = progress.tajwidPercent,
-                        color = GoldPrimary,
-                        icon = Icons.Default.School,
-                        onClick = onNavigateToLiveClass
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LearningProgressItem(
-                        title = "Memorization (Hafazan)",
-                        subtitle = "Juz 30: Surah Al-Falaq & An-Nas",
-                        percent = progress.memorizationPercent,
-                        color = Color(0xFF0284C7),
-                        icon = Icons.Default.Psychology,
-                        onClick = onNavigateToQuran
-                    )
-                }
-            }
-
-            // 6. Featured Teachers Carousel
-            item {
-                Column(modifier = Modifier.padding(vertical = 12.dp)) {
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -520,94 +481,165 @@ fun HomeScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         TextButton(onClick = onNavigateToTeachers) {
-                            Text("Discover All", color = Emerald700)
+                            Text(
+                                text = "View All",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Emerald700
+                            )
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(teachers) { teacher ->
-                            TeacherMiniCard(
+                            TeacherHomeCard(
                                 teacher = teacher,
-                                onSelect = {
-                                    onTeacherSelect(teacher)
-                                    onNavigateToTeachers()
-                                },
-                                onBook = {
-                                    onTeacherSelect(teacher)
-                                    onNavigateToTeachers()
-                                }
+                                onClick = { onTeacherSelect(teacher) }
                             )
                         }
                     }
                 }
             }
 
-            // 7. Global Learning Community Preview
+            // 6. Active Study Groups Carousel
             item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("🌍", fontSize = 24.sp)
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Community Circles",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        TextButton(onClick = onNavigateToCommunity) {
+                            Text(
+                                text = "Explore",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Emerald700
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(groups.take(3)) { group ->
+                            Surface(
+                                modifier = Modifier
+                                    .width(220.dp)
+                                    .clickable { onNavigateToCommunity() },
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = CardDefaults.outlinedCardBorder()
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(group.iconEmoji, fontSize = 22.sp)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = group.name,
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
                                     Text(
-                                        text = "Global Quran Community",
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "35,000+ active learners worldwide",
+                                        text = "${group.memberCount} active learners",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = Emerald700
                                     )
                                 }
                             }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text(
-                            text = "Join study circles, participate in weekly Juz recitation challenges, and exchange Tajwid notes with learners and teachers globally.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        Button(
-                            onClick = onNavigateToCommunity,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(44.dp)
-                                .testTag("explore_community_button"),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Emerald800,
-                                contentColor = Color.White
-                            )
-                        ) {
-                            Text("Explore Community Circles", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
         }
+    }
+
+    // Daily Inspiration Dialog
+    if (showInspirationDialog) {
+        AlertDialog(
+            onDismissRequest = { showInspirationDialog = false },
+            title = {
+                Text("Daily Quran Reflection", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "وَرَتِّلِ الْقُرْآنَ تَرْتِيلًا",
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        color = Emerald700,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    Text(
+                        text = "\"And recite the Quran with measured recitation.\"",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Surah Al-Muzzammil (73:4)\n\nReflection: Tartil signifies reciting calmly, giving each letter its rightful articulation (Makhraj) and proper elongation (Mad). Slow down your recitation and let the meanings settle into your heart.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showInspirationDialog = false
+                        onNavigateToQuran()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
+                ) {
+                    Text("Open in Quran")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInspirationDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // Notification Center Sheet
+    if (showNotificationsSheet) {
+        NotificationCenterSheet(
+            repository = repository,
+            onDismiss = { showNotificationsSheet = false },
+            onNavigateToClass = {
+                showNotificationsSheet = false
+                onNavigateToLiveClass()
+            },
+            onNavigateToQuran = {
+                showNotificationsSheet = false
+                onNavigateToQuran()
+            },
+            onNavigateToCommunity = {
+                showNotificationsSheet = false
+                onNavigateToCommunity()
+            },
+            onNavigateToProgress = {
+                showNotificationsSheet = false
+                onNavigateToProgress()
+            },
+            onShowSnackbar = onShowSnackbar
+        )
     }
 }
 
@@ -621,17 +653,18 @@ private fun QuickActionItem(
     modifier: Modifier = Modifier,
     testTag: String
 ) {
-    Surface(
+    Card(
         modifier = modifier
-            .testTag(testTag)
-            .clip(RoundedCornerShape(16.dp))
-            .clickable { onClick() },
+            .clickable { onClick() }
+            .testTag(testTag),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = CardDefaults.outlinedCardBorder()
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 14.dp, horizontal = 6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp, horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
@@ -645,7 +678,7 @@ private fun QuickActionItem(
                     imageVector = icon,
                     contentDescription = title,
                     tint = color,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(24.dp)
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -660,191 +693,64 @@ private fun QuickActionItem(
 }
 
 @Composable
-private fun LearningProgressItem(
-    title: String,
-    subtitle: String,
-    percent: Int,
-    color: Color,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = CardDefaults.outlinedCardBorder()
-    ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(color.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = color,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "$percent%",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = color
-                    )
-                }
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                LinearProgressIndicator(
-                    progress = { percent / 100f },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = color,
-                    trackColor = color.copy(alpha = 0.15f)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TeacherMiniCard(
+private fun TeacherHomeCard(
     teacher: Teacher,
-    onSelect: () -> Unit,
-    onBook: () -> Unit
+    onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
-            .width(220.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .clickable { onSelect() },
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            .width(160.dp)
+            .clickable { onClick() }
+            .testTag("teacher_home_card_${teacher.id}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = CardDefaults.outlinedCardBorder()
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (teacher.imageDrawableRes != null) {
-                    Image(
-                        painter = painterResource(id = teacher.imageDrawableRes),
-                        contentDescription = teacher.name,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(Emerald700),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = teacher.name.take(1),
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(10.dp))
-
-                Column {
-                    Text(
-                        text = teacher.name,
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = teacher.flagEmoji, fontSize = 12.sp)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = teacher.country,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = null,
-                        tint = GoldPrimary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(
-                        text = String.format("%.2f", teacher.rating),
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
-                    )
-                    Text(
-                        text = " (${teacher.reviewsCount})",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Text(
-                    text = teacher.hourlyRate,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = Emerald700
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedButton(
-                onClick = onBook,
+        Column(
+            modifier = Modifier.padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Image(
+                painter = painterResource(id = teacher.imageDrawableRes ?: R.drawable.img_teacher_ahmad),
+                contentDescription = teacher.name,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(36.dp),
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = PaddingValues(0.dp)
-            ) {
-                Text("Book Session", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                    .size(54.dp)
+                    .clip(CircleShape)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = teacher.name,
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
+
+            Text(
+                text = teacher.title,
+                style = MaterialTheme.typography.bodySmall,
+                color = Emerald700,
+                maxLines = 1,
+                fontSize = 11.sp
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = GoldPrimary,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+                Text(
+                    text = "${teacher.rating}",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     }

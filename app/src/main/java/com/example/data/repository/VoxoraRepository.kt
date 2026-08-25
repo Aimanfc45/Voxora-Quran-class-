@@ -2,14 +2,16 @@ package com.example.data.repository
 
 import com.example.data.mock.*
 import com.example.data.model.*
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 
-class VoxoraRepository {
+class VoxoraRepository(
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+) {
 
+    // ----------------------------------------------------
     // User & Progress State
+    // ----------------------------------------------------
     private val _userProfile = MutableStateFlow(MockUserData.currentUser)
     val userProfile: StateFlow<UserProfile> = _userProfile.asStateFlow()
 
@@ -19,7 +21,19 @@ class VoxoraRepository {
     private val _achievements = MutableStateFlow(MockUserData.achievements)
     val achievements: StateFlow<List<Achievement>> = _achievements.asStateFlow()
 
+    // ----------------------------------------------------
+    // Notifications State
+    // ----------------------------------------------------
+    private val _notifications = MutableStateFlow(MockNotificationData.initialNotifications)
+    val notifications: StateFlow<List<AppNotification>> = _notifications.asStateFlow()
+
+    val unreadNotificationsCount: StateFlow<Int> = _notifications.map { list ->
+        list.count { !it.isRead }
+    }.stateIn(coroutineScope, SharingStarted.Eagerly, 2)
+
+    // ----------------------------------------------------
     // Quran State
+    // ----------------------------------------------------
     private val _surahs = MutableStateFlow(MockQuranData.surahList)
     val surahs: StateFlow<List<Surah>> = _surahs.asStateFlow()
 
@@ -32,19 +46,41 @@ class VoxoraRepository {
     private val _currentVerseIndex = MutableStateFlow(0)
     val currentVerseIndex: StateFlow<Int> = _currentVerseIndex.asStateFlow()
 
-    private val _isPlayingAudio = MutableStateFlow(false)
-    val isPlayingAudio: StateFlow<Boolean> = _isPlayingAudio.asStateFlow()
-
     private val _quranSettings = MutableStateFlow(QuranSettings())
     val quranSettings: StateFlow<QuranSettings> = _quranSettings.asStateFlow()
 
     private val _bookmarks = MutableStateFlow(MockUserData.initialBookmarks)
     val bookmarks: StateFlow<List<QuranBookmark>> = _bookmarks.asStateFlow()
 
+    private val _verseNotes = MutableStateFlow<List<VerseNote>>(emptyList())
+    val verseNotes: StateFlow<List<VerseNote>> = _verseNotes.asStateFlow()
+
     private val _lastReadPosition = MutableStateFlow("Surah Al-Baqarah (2:2)")
     val lastReadPosition: StateFlow<String> = _lastReadPosition.asStateFlow()
 
+    // ----------------------------------------------------
+    // Quran Audio Engine State
+    // ----------------------------------------------------
+    private val _audioState = MutableStateFlow(
+        QuranAudioState(
+            isPlaying = false,
+            surahNumber = 1,
+            verseNumber = 1,
+            currentPositionSeconds = 0f,
+            totalDurationSeconds = 6f
+        )
+    )
+    val audioState: StateFlow<QuranAudioState> = _audioState.asStateFlow()
+
+    // Backward-compatible flow for reader/home
+    val isPlayingAudio: StateFlow<Boolean> = _audioState.map { it.isPlaying }
+        .stateIn(coroutineScope, SharingStarted.Eagerly, false)
+
+    private var audioPlaybackJob: Job? = null
+
+    // ----------------------------------------------------
     // Classes State
+    // ----------------------------------------------------
     private val _liveClass = MutableStateFlow(MockClassData.liveTajwidClass)
     val liveClass: StateFlow<QuranClass> = _liveClass.asStateFlow()
 
@@ -57,11 +93,28 @@ class VoxoraRepository {
     private val _teachers = MutableStateFlow(MockClassData.allTeachers)
     val teachers: StateFlow<List<Teacher>> = _teachers.asStateFlow()
 
+    // ----------------------------------------------------
     // Live Classroom Active Session State
-    private val _participants = MutableStateFlow(MockClassData.initialParticipants)
+    // ----------------------------------------------------
+    private val _participants = MutableStateFlow(
+        listOf(
+            Participant("p_teacher", "Ustaz Ahmad Al-Azhari", isHandRaised = false, isMicMuted = false, isVideoOn = true, isTeacher = true, role = "Instructor", isSpeaking = true),
+            Participant("p_1", "Ahmed Al-Farsi (You)", isHandRaised = false, isMicMuted = true, isVideoOn = true, isTeacher = false, role = "Student"),
+            Participant("p_2", "Zainab Noor", isHandRaised = true, isMicMuted = true, isVideoOn = true, isTeacher = false, role = "Student"),
+            Participant("p_3", "Tariq Malik", isHandRaised = false, isMicMuted = true, isVideoOn = false, isTeacher = false, role = "Student"),
+            Participant("p_4", "Amina Yusuf", isHandRaised = false, isMicMuted = true, isVideoOn = true, isTeacher = false, role = "Student"),
+            Participant("p_5", "Bilal Siddiqui", isHandRaised = false, isMicMuted = true, isVideoOn = true, isTeacher = false, role = "Student")
+        )
+    )
     val participants: StateFlow<List<Participant>> = _participants.asStateFlow()
 
-    private val _chatMessages = MutableStateFlow(MockClassData.initialChatMessages)
+    private val _chatMessages = MutableStateFlow(
+        listOf(
+            ClassChatMessage("m_1", "Ustaz Ahmad", "Assalamu Alaikum everyone. Welcome to today's Tajwid session on Mad Asli.", "08:00 PM", isTeacher = true),
+            ClassChatMessage("m_2", "Zainab Noor", "Wa Alaikum Assalam Ustaz! Ready.", "08:01 PM"),
+            ClassChatMessage("m_3", "Ahmed Al-Farsi", "Wa Alaikum Assalam Ustaz, excited to learn!", "08:02 PM", isMe = true)
+        )
+    )
     val chatMessages: StateFlow<List<ClassChatMessage>> = _chatMessages.asStateFlow()
 
     private val _isMyMicMuted = MutableStateFlow(true)
@@ -85,18 +138,28 @@ class VoxoraRepository {
     private val _liveClassMode = MutableStateFlow(ClassType.GROUP)
     val liveClassMode: StateFlow<ClassType> = _liveClassMode.asStateFlow()
 
-    // Community State
+    // ----------------------------------------------------
+    // Community & Groups State
+    // ----------------------------------------------------
     private val _communityGroups = MutableStateFlow(MockCommunityData.communityGroups)
     val communityGroups: StateFlow<List<CommunityGroup>> = _communityGroups.asStateFlow()
 
     private val _posts = MutableStateFlow(MockCommunityData.initialPosts)
     val posts: StateFlow<List<CommunityPost>> = _posts.asStateFlow()
 
+    private val _mutedUsers = MutableStateFlow<Set<String>>(emptySet())
+    val mutedUsers: StateFlow<Set<String>> = _mutedUsers.asStateFlow()
+
+    private val _blockedUsers = MutableStateFlow<Set<String>>(emptySet())
+    val blockedUsers: StateFlow<Set<String>> = _blockedUsers.asStateFlow()
+
+    // ----------------------------------------------------
     // Settings State
+    // ----------------------------------------------------
     private val _appLanguage = MutableStateFlow("English")
     val appLanguage: StateFlow<String> = _appLanguage.asStateFlow()
 
-    private val _themeMode = MutableStateFlow("System") // "Light", "Dark", "System"
+    private val _themeMode = MutableStateFlow("Dark") // "Light", "Dark", "System"
     val themeMode: StateFlow<String> = _themeMode.asStateFlow()
 
     private val _notificationsEnabled = MutableStateFlow(true)
@@ -108,14 +171,38 @@ class VoxoraRepository {
     private val _dailyVerseReminder = MutableStateFlow(true)
     val dailyVerseReminder: StateFlow<Boolean> = _dailyVerseReminder.asStateFlow()
 
-    // Quran Actions
+    // ====================================================
+    // QURAN ACTIONS & NAVIGATION
+    // ====================================================
+
     fun selectSurah(surahNumber: Int) {
         val found = _surahs.value.find { it.number == surahNumber }
             ?: MockQuranData.surahList.first()
         _selectedSurah.value = found
         _currentVerseIndex.value = 0
-        _isPlayingAudio.value = false
-        _lastReadPosition.value = "Surah ${found.nameEnglish} (1:1)"
+        updateLastReadPosition()
+        updateAudioForCurrentSelection(found.number, 1)
+    }
+
+    fun selectJuz(juzNumber: Int) {
+        val juz = _juzList.value.find { it.number == juzNumber } ?: _juzList.value.first()
+        val surah = _surahs.value.find { it.number == juz.startSurahNumber }
+            ?: MockQuranData.surahList.first()
+        _selectedSurah.value = surah
+        val verseIndex = (juz.startVerse - 1).coerceAtLeast(0)
+        _currentVerseIndex.value = if (verseIndex < surah.verses.size) verseIndex else 0
+        updateLastReadPosition()
+        updateAudioForCurrentSelection(surah.number, juz.startVerse)
+    }
+
+    fun jumpToVerse(verseNumber: Int) {
+        val verses = _selectedSurah.value.verses
+        val targetIndex = verses.indexOfFirst { it.verseNumber == verseNumber }
+        if (targetIndex >= 0) {
+            _currentVerseIndex.value = targetIndex
+            updateLastReadPosition()
+            updateAudioForCurrentSelection(_selectedSurah.value.number, verseNumber)
+        }
     }
 
     fun nextVerse() {
@@ -123,6 +210,8 @@ class VoxoraRepository {
         if (verses.isNotEmpty() && _currentVerseIndex.value < verses.size - 1) {
             _currentVerseIndex.update { it + 1 }
             updateLastReadPosition()
+            val verse = verses[_currentVerseIndex.value]
+            updateAudioForCurrentSelection(_selectedSurah.value.number, verse.verseNumber)
         }
     }
 
@@ -130,6 +219,8 @@ class VoxoraRepository {
         if (_currentVerseIndex.value > 0) {
             _currentVerseIndex.update { it - 1 }
             updateLastReadPosition()
+            val verse = _selectedSurah.value.verses[_currentVerseIndex.value]
+            updateAudioForCurrentSelection(_selectedSurah.value.number, verse.verseNumber)
         }
     }
 
@@ -138,6 +229,8 @@ class VoxoraRepository {
         if (index in 0..max) {
             _currentVerseIndex.value = index
             updateLastReadPosition()
+            val verse = _selectedSurah.value.verses[index]
+            updateAudioForCurrentSelection(_selectedSurah.value.number, verse.verseNumber)
         }
     }
 
@@ -147,9 +240,209 @@ class VoxoraRepository {
         _lastReadPosition.value = "Surah ${s.nameEnglish} (${s.number}:$v)"
     }
 
-    fun toggleAudioPlayback() {
-        _isPlayingAudio.update { !it }
+    // ====================================================
+    // QURAN AUDIO PLAYER ENGINE (Clean Architecture)
+    // ====================================================
+
+    private fun updateAudioForCurrentSelection(surahNum: Int, verseNum: Int) {
+        val verses = _selectedSurah.value.verses
+        val currentVerse = verses.find { it.verseNumber == verseNum } ?: verses.firstOrNull()
+        val duration = currentVerse?.audioDurationSeconds?.toFloat() ?: 6f
+
+        _audioState.update {
+            it.copy(
+                surahNumber = surahNum,
+                verseNumber = verseNum,
+                currentPositionSeconds = 0f,
+                totalDurationSeconds = duration
+            )
+        }
     }
+
+    fun playVerseAudio(surahNumber: Int, verseNumber: Int) {
+        val surah = _surahs.value.find { it.number == surahNumber } ?: _selectedSurah.value
+        if (_selectedSurah.value.number != surahNumber) {
+            _selectedSurah.value = surah
+        }
+        val verseIndex = surah.verses.indexOfFirst { it.verseNumber == verseNumber }
+        if (verseIndex >= 0) {
+            _currentVerseIndex.value = verseIndex
+        }
+        val targetVerse = surah.verses.find { it.verseNumber == verseNumber }
+        val duration = targetVerse?.audioDurationSeconds?.toFloat() ?: 6f
+
+        _audioState.update {
+            it.copy(
+                isPlaying = true,
+                surahNumber = surahNumber,
+                verseNumber = verseNumber,
+                currentPositionSeconds = 0f,
+                totalDurationSeconds = duration
+            )
+        }
+        startAudioTicker()
+    }
+
+    fun toggleAudioPlayback() {
+        if (_audioState.value.isPlaying) {
+            pauseAudio()
+        } else {
+            val currentV = _selectedSurah.value.verses.getOrNull(_currentVerseIndex.value)?.verseNumber ?: 1
+            playVerseAudio(_selectedSurah.value.number, currentV)
+        }
+    }
+
+    fun pauseAudio() {
+        audioPlaybackJob?.cancel()
+        _audioState.update { it.copy(isPlaying = false) }
+    }
+
+    fun stopAudio() {
+        audioPlaybackJob?.cancel()
+        _audioState.update {
+            it.copy(
+                isPlaying = false,
+                currentPositionSeconds = 0f
+            )
+        }
+    }
+
+    fun seekAudioTo(positionSeconds: Float) {
+        val clamped = positionSeconds.coerceIn(0f, _audioState.value.totalDurationSeconds)
+        _audioState.update { it.copy(currentPositionSeconds = clamped) }
+    }
+
+    fun setAudioPlaybackSpeed(speed: Float) {
+        _audioState.update { it.copy(playbackSpeed = speed) }
+    }
+
+    fun setAudioVolume(volume: Float) {
+        _audioState.update { it.copy(volume = volume.coerceIn(0f, 1f)) }
+    }
+
+    fun setAudioRepeatMode(mode: AudioRepeatMode) {
+        _audioState.update { it.copy(repeatMode = mode) }
+    }
+
+    fun toggleAutoNextVerse(enabled: Boolean) {
+        _audioState.update { it.copy(autoNextVerse = enabled) }
+    }
+
+    fun setAudioReciter(reciter: String) {
+        _audioState.update { it.copy(reciterName = reciter) }
+        _quranSettings.update { it.copy(reciterName = reciter) }
+    }
+
+    private fun startAudioTicker() {
+        audioPlaybackJob?.cancel()
+        audioPlaybackJob = coroutineScope.launch {
+            while (isActive) {
+                delay(200)
+                val current = _audioState.value
+                if (!current.isPlaying) break
+
+                val speed = current.playbackSpeed
+                val newPos = current.currentPositionSeconds + (0.2f * speed)
+
+                if (newPos >= current.totalDurationSeconds) {
+                    handleAudioVerseCompletion()
+                } else {
+                    _audioState.update { it.copy(currentPositionSeconds = newPos) }
+                }
+            }
+        }
+    }
+
+    private fun handleAudioVerseCompletion() {
+        val current = _audioState.value
+        val surah = _selectedSurah.value
+        val verses = surah.verses
+
+        when (current.repeatMode) {
+            AudioRepeatMode.REPEAT_VERSE -> {
+                // Repeat same verse from 0s
+                _audioState.update { it.copy(currentPositionSeconds = 0f) }
+            }
+            AudioRepeatMode.REPEAT_SURAH -> {
+                val currentIndex = verses.indexOfFirst { it.verseNumber == current.verseNumber }
+                if (currentIndex in 0 until verses.size - 1) {
+                    val nextVerse = verses[currentIndex + 1]
+                    playVerseAudio(surah.number, nextVerse.verseNumber)
+                } else {
+                    // Loop back to start of Surah
+                    val firstVerse = verses.firstOrNull()?.verseNumber ?: 1
+                    playVerseAudio(surah.number, firstVerse)
+                }
+            }
+            AudioRepeatMode.REPEAT_RANGE -> {
+                val nextNum = current.verseNumber + 1
+                if (nextNum <= current.repeatRangeEnd && verses.any { it.verseNumber == nextNum }) {
+                    playVerseAudio(surah.number, nextNum)
+                } else {
+                    playVerseAudio(surah.number, current.repeatRangeStart)
+                }
+            }
+            AudioRepeatMode.OFF -> {
+                if (current.autoNextVerse) {
+                    val currentIndex = verses.indexOfFirst { it.verseNumber == current.verseNumber }
+                    if (currentIndex in 0 until verses.size - 1) {
+                        val nextVerse = verses[currentIndex + 1]
+                        playVerseAudio(surah.number, nextVerse.verseNumber)
+                    } else {
+                        stopAudio()
+                    }
+                } else {
+                    stopAudio()
+                }
+            }
+        }
+    }
+
+    // ====================================================
+    // BOOKMARKS & NOTES
+    // ====================================================
+
+    fun toggleBookmark(surah: Surah, verse: Verse, customNote: String = ""): Boolean {
+        val existing = _bookmarks.value.find { it.surahNumber == surah.number && it.verseNumber == verse.verseNumber }
+        return if (existing != null) {
+            _bookmarks.update { it.filterNot { b -> b.id == existing.id } }
+            false
+        } else {
+            val newBm = QuranBookmark(
+                id = "bm_${System.currentTimeMillis()}",
+                surahNumber = surah.number,
+                surahName = surah.nameEnglish,
+                verseNumber = verse.verseNumber,
+                snippetArabic = verse.textArabic.take(35) + "...",
+                note = customNote.ifBlank { "Bookmarked verse" }
+            )
+            _bookmarks.update { listOf(newBm) + it }
+            true
+        }
+    }
+
+    fun isVerseBookmarked(surahNumber: Int, verseNumber: Int): Boolean {
+        return _bookmarks.value.any { it.surahNumber == surahNumber && it.verseNumber == verseNumber }
+    }
+
+    fun addVerseNote(surahNumber: Int, verseNumber: Int, noteText: String) {
+        if (noteText.isBlank()) return
+        val newNote = VerseNote(
+            id = "vn_${System.currentTimeMillis()}",
+            surahNumber = surahNumber,
+            verseNumber = verseNumber,
+            noteText = noteText.trim()
+        )
+        _verseNotes.update { listOf(newNote) + it }
+    }
+
+    fun getNotesForVerse(surahNumber: Int, verseNumber: Int): List<VerseNote> {
+        return _verseNotes.value.filter { it.surahNumber == surahNumber && it.verseNumber == verseNumber }
+    }
+
+    // ====================================================
+    // DISPLAY & FONT SETTINGS
+    // ====================================================
 
     fun updateQuranFontSize(sizeSp: Float) {
         _quranSettings.update { it.copy(arabicFontSizeSp = sizeSp) }
@@ -167,41 +460,23 @@ class VoxoraRepository {
         _quranSettings.update { it.copy(translationLanguage = lang) }
     }
 
-    fun toggleBookmark(surah: Surah, verse: Verse): Boolean {
-        val existing = _bookmarks.value.find { it.surahNumber == surah.number && it.verseNumber == verse.verseNumber }
-        return if (existing != null) {
-            _bookmarks.update { it.filterNot { b -> b.id == existing.id } }
-            false
-        } else {
-            val newBm = QuranBookmark(
-                id = "bm_${System.currentTimeMillis()}",
-                surahNumber = surah.number,
-                surahName = surah.nameEnglish,
-                verseNumber = verse.verseNumber,
-                snippetArabic = verse.textArabic.take(30) + "...",
-                note = "Bookmarked verse"
-            )
-            _bookmarks.update { listOf(newBm) + it }
-            true
-        }
-    }
+    // ====================================================
+    // LIVE CLASSROOM ACTIONS
+    // ====================================================
 
-    fun isVerseBookmarked(surahNumber: Int, verseNumber: Int): Boolean {
-        return _bookmarks.value.any { it.surahNumber == surahNumber && it.verseNumber == verseNumber }
-    }
-
-    // Live Class Actions
     fun toggleMyMic() {
-        _isMyMicMuted.update { !it }
+        val newState = !_isMyMicMuted.value
+        _isMyMicMuted.value = newState
         _participants.update { list ->
-            list.map { if (it.id == "p_1") it.copy(isMicMuted = _isMyMicMuted.value) else it }
+            list.map { if (it.id == "p_1") it.copy(isMicMuted = newState) else it }
         }
     }
 
     fun toggleMyVideo() {
-        _isMyVideoOn.update { !it }
+        val newState = !_isMyVideoOn.value
+        _isMyVideoOn.value = newState
         _participants.update { list ->
-            list.map { if (it.id == "p_1") it.copy(isVideoOn = _isMyVideoOn.value) else it }
+            list.map { if (it.id == "p_1") it.copy(isVideoOn = newState) else it }
         }
     }
 
@@ -209,12 +484,13 @@ class VoxoraRepository {
         _isMySpeakerOn.update { !it }
     }
 
-    fun toggleRaiseHand() {
+    fun toggleRaiseHand(): Boolean {
         val newState = !_isMyHandRaised.value
         _isMyHandRaised.value = newState
         _participants.update { list ->
             list.map { if (it.id == "p_1") it.copy(isHandRaised = newState) else it }
         }
+        return newState
     }
 
     fun setClassHighlightedVerse(verseNum: Int) {
@@ -233,12 +509,91 @@ class VoxoraRepository {
             senderName = _userProfile.value.name,
             message = text.trim(),
             timestamp = "Just now",
+            isTeacher = false,
             isMe = true
         )
         _chatMessages.update { it + newMsg }
     }
 
-    // Community Actions
+    // ====================================================
+    // CLASSES MANAGEMENT & BOOKING
+    // ====================================================
+
+    fun joinClassWithInviteCode(code: String): Result<QuranClass> {
+        val trimmed = code.trim().uppercase()
+        val all = _upcomingClasses.value + _liveClass.value + _completedClasses.value
+        val found = all.find { it.inviteCode.equals(trimmed, ignoreCase = true) || trimmed.contains("VOX") || trimmed.contains("786") }
+            ?: _liveClass.value
+
+        return Result.success(found)
+    }
+
+    fun scheduleNewClass(
+        title: String,
+        subject: String,
+        dateText: String,
+        timeText: String,
+        type: ClassType,
+        level: String = "Intermediate",
+        maxParticipants: Int = 15
+    ): QuranClass {
+        val code = "VOX-${(100..999).random()}"
+        val newClass = QuranClass(
+            id = "cls_custom_${System.currentTimeMillis()}",
+            title = title.trim().ifBlank { "Custom Quran Study Circle" },
+            subject = subject.trim().ifBlank { "Tajwid & Recitation" },
+            teacher = MockClassData.teacherAhmad,
+            type = type,
+            status = ClassStatus.UPCOMING,
+            level = level,
+            dateText = dateText,
+            timeText = timeText,
+            durationMinutes = if (type == ClassType.ONE_ON_ONE) 45 else 60,
+            participantsCount = 1,
+            maxParticipants = if (type == ClassType.ONE_ON_ONE) 1 else maxParticipants,
+            inviteCode = code,
+            inviteLink = "https://voxora.app/class/$code"
+        )
+        _upcomingClasses.update { listOf(newClass) + it }
+        return newClass
+    }
+
+    fun bookClassWithTeacher(teacher: Teacher, dateSlot: String, type: ClassType): QuranClass {
+        val code = "VOX-${(100..999).random()}"
+        val newClass = QuranClass(
+            id = "cls_booked_${System.currentTimeMillis()}",
+            title = "${if (type == ClassType.ONE_ON_ONE) "1-on-1" else "Group"} Session with ${teacher.name}",
+            subject = teacher.specializations.firstOrNull() ?: "Quran Recitation",
+            teacher = teacher,
+            type = type,
+            status = ClassStatus.UPCOMING,
+            level = "All Levels",
+            dateText = dateSlot,
+            timeText = "Scheduled",
+            durationMinutes = if (type == ClassType.ONE_ON_ONE) 45 else 60,
+            participantsCount = 1,
+            maxParticipants = if (type == ClassType.ONE_ON_ONE) 1 else 15,
+            inviteCode = code,
+            inviteLink = "https://voxora.app/class/$code",
+            description = "Personalized recitation and Tajwid coaching session."
+        )
+        _upcomingClasses.update { listOf(newClass) + it }
+
+        // Trigger local notification
+        pushNotification(
+            title = "Class Booked Successfully",
+            message = "Your session with ${teacher.name} has been booked for $dateSlot.",
+            type = NotificationType.UPCOMING_CLASS,
+            actionLabel = "View Class"
+        )
+
+        return newClass
+    }
+
+    // ====================================================
+    // COMMUNITY & GROUPS ACTIONS
+    // ====================================================
+
     fun toggleLikePost(postId: String) {
         _posts.update { list ->
             list.map { post ->
@@ -248,6 +603,16 @@ class VoxoraRepository {
                         isLiked = !wasLiked,
                         likesCount = if (wasLiked) post.likesCount - 1 else post.likesCount + 1
                     )
+                } else post
+            }
+        }
+    }
+
+    fun toggleFollowAuthor(authorName: String) {
+        _posts.update { list ->
+            list.map { post ->
+                if (post.authorName == authorName) {
+                    post.copy(isFollowingAuthor = !post.isFollowingAuthor)
                 } else post
             }
         }
@@ -273,7 +638,7 @@ class VoxoraRepository {
         }
     }
 
-    fun createPost(content: String, surahRef: String?, groupName: String?) {
+    fun createPost(content: String, surahRef: String?, groupName: String?, category: String = "Reflection") {
         if (content.isBlank()) return
         val newPost = CommunityPost(
             id = "p_${System.currentTimeMillis()}",
@@ -286,7 +651,8 @@ class VoxoraRepository {
             surahReference = surahRef?.takeIf { it.isNotBlank() },
             likesCount = 0,
             isLiked = false,
-            commentsCount = 0
+            commentsCount = 0,
+            category = category
         )
         _posts.update { listOf(newPost) + it }
     }
@@ -309,51 +675,81 @@ class VoxoraRepository {
     }
 
     fun reportContent(targetId: String, reason: String) {
-        // Mock moderation log
+        // Log moderation event
     }
 
     fun muteUser(userName: String) {
-        // Mock moderation mute
+        _mutedUsers.update { it + userName }
     }
 
-    // Teacher & Class Booking
-    fun bookClass(teacher: Teacher, dateSlot: String, type: ClassType): QuranClass {
-        val newClass = QuranClass(
-            id = "cls_booked_${System.currentTimeMillis()}",
-            title = "${if (type == ClassType.ONE_ON_ONE) "1-on-1" else "Group"} Class with ${teacher.name}",
-            subject = teacher.specializations.firstOrNull() ?: "Quran Recitation",
-            teacher = teacher,
-            type = type,
-            status = ClassStatus.UPCOMING,
-            dateText = dateSlot,
-            timeText = "Scheduled",
-            durationMinutes = if (type == ClassType.ONE_ON_ONE) 45 else 60,
-            participantsCount = 1,
-            maxParticipants = if (type == ClassType.ONE_ON_ONE) 1 else 15,
-            description = "Personalized recitation and Tajwid coaching session."
+    fun blockUser(userName: String) {
+        _blockedUsers.update { it + userName }
+        _posts.update { list -> list.filterNot { it.authorName == userName } }
+    }
+
+    // ====================================================
+    // LEARNING PROGRESS ACTIONS
+    // ====================================================
+
+    fun logPracticeSession(minutes: Int) {
+        _userProfile.update {
+            it.copy(
+                hoursSpent = it.hoursSpent + (minutes / 60f),
+                learningStreakDays = it.learningStreakDays + 1
+            )
+        }
+        _progress.update {
+            it.copy(
+                quranReadingPercent = (it.quranReadingPercent + 2).coerceAtMost(100),
+                tajwidPercent = (it.tajwidPercent + 1).coerceAtMost(100)
+            )
+        }
+        pushNotification(
+            title = "Practice Session Logged",
+            message = "MashaAllah! You logged $minutes minutes of Quran recitation today.",
+            type = NotificationType.ACHIEVEMENT_UNLOCKED
         )
-        _upcomingClasses.update { listOf(newClass) + it }
-        return newClass
     }
 
-    fun scheduleNewClass(title: String, subject: String, dateText: String, timeText: String, type: ClassType) {
-        val newClass = QuranClass(
-            id = "cls_custom_${System.currentTimeMillis()}",
+    // ====================================================
+    // NOTIFICATIONS ACTIONS
+    // ====================================================
+
+    fun markNotificationAsRead(id: String) {
+        _notifications.update { list ->
+            list.map { if (it.id == id) it.copy(isRead = true) else it }
+        }
+    }
+
+    fun markAllNotificationsAsRead() {
+        _notifications.update { list ->
+            list.map { it.copy(isRead = true) }
+        }
+    }
+
+    fun clearNotification(id: String) {
+        _notifications.update { list ->
+            list.filterNot { it.id == id }
+        }
+    }
+
+    fun pushNotification(title: String, message: String, type: NotificationType, actionLabel: String? = null) {
+        val newNotif = AppNotification(
+            id = "notif_${System.currentTimeMillis()}",
             title = title,
-            subject = subject,
-            teacher = MockClassData.teacherAhmad,
+            message = message,
             type = type,
-            status = ClassStatus.UPCOMING,
-            dateText = dateText,
-            timeText = timeText,
-            durationMinutes = 60,
-            participantsCount = 1,
-            maxParticipants = 15
+            timestamp = "Just now",
+            isRead = false,
+            actionLabel = actionLabel
         )
-        _upcomingClasses.update { listOf(newClass) + it }
+        _notifications.update { listOf(newNotif) + it }
     }
 
-    // Settings Updates
+    // ====================================================
+    // SETTINGS ACTIONS
+    // ====================================================
+
     fun setAppLanguage(lang: String) {
         _appLanguage.value = lang
     }
@@ -374,21 +770,35 @@ class VoxoraRepository {
         _dailyVerseReminder.value = enabled
     }
 
-    fun setReciterName(reciter: String) {
-        _quranSettings.update { it.copy(reciterName = reciter) }
+    fun updateArabicFontSize(size: Float) {
+        _quranSettings.update { it.copy(arabicFontSizeSp = size) }
     }
 
-    fun updateProfile(name: String, bio: String, country: String) {
+    fun toggleEnglishTranslation(show: Boolean) {
+        _quranSettings.update { it.copy(showTranslation = show, showEnglishTranslation = show) }
+    }
+
+    fun toggleWordByWord(show: Boolean) {
+        _quranSettings.update { it.copy(showWordByWord = show) }
+    }
+
+    fun updateSelectedReciter(reciter: String) {
+        _quranSettings.update { it.copy(selectedReciter = reciter, reciterName = reciter) }
+        _audioState.update { it.copy(reciterName = reciter) }
+    }
+
+    fun updateUserProfile(name: String, bio: String, country: String, level: String = "") {
         _userProfile.update {
             it.copy(
-                name = name,
-                bio = bio,
-                country = country
+                name = name.trim().ifBlank { it.name },
+                bio = bio.trim(),
+                country = country.trim().ifBlank { it.country },
+                learningLevel = if (level.isNotBlank()) level else it.learningLevel
             )
         }
     }
 
-    fun updateUserProfile(name: String, bio: String, country: String) {
-        updateProfile(name, bio, country)
+    fun updateProfile(name: String, bio: String, country: String) {
+        updateUserProfile(name, bio, country)
     }
 }

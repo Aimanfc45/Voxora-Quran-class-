@@ -1,5 +1,27 @@
 package com.example.data.model
 
+enum class AudioRepeatMode {
+    OFF,
+    REPEAT_VERSE,
+    REPEAT_RANGE,
+    REPEAT_SURAH
+}
+
+data class QuranAudioState(
+    val isPlaying: Boolean = false,
+    val surahNumber: Int = 1,
+    val verseNumber: Int = 1,
+    val currentPositionSeconds: Float = 0f,
+    val totalDurationSeconds: Float = 8f,
+    val playbackSpeed: Float = 1.0f,
+    val volume: Float = 1.0f,
+    val repeatMode: AudioRepeatMode = AudioRepeatMode.OFF,
+    val autoNextVerse: Boolean = true,
+    val reciterName: String = "Mishary Rashid Alafasy",
+    val repeatRangeStart: Int = 1,
+    val repeatRangeEnd: Int = 7
+)
+
 data class Surah(
     val number: Int,
     val nameArabic: String,
@@ -19,14 +41,17 @@ data class Verse(
     val translationEnglish: String,
     val translationMalay: String,
     val audioDurationSeconds: Int = 8,
-    val tajwidRuleHighlight: String? = null
+    val tajwidRuleHighlight: String? = null,
+    val note: String? = null
 )
 
 data class JuzInfo(
     val number: Int,
+    val nameArabic: String = "",
+    val startSurahNumber: Int,
     val startSurahName: String,
     val startVerse: Int,
-    val totalVerses: Int
+    val totalVerses: Int = 150
 )
 
 data class QuranBookmark(
@@ -39,11 +64,22 @@ data class QuranBookmark(
     val note: String = ""
 )
 
+data class VerseNote(
+    val id: String,
+    val surahNumber: Int,
+    val verseNumber: Int,
+    val noteText: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 data class QuranSettings(
     val arabicFontSizeSp: Float = 26f,
     val showTranslation: Boolean = true,
     val showTransliteration: Boolean = true,
-    val translationLanguage: String = "English", // "English", "Bahasa Melayu", "Arabic"
+    val showEnglishTranslation: Boolean = true,
+    val showWordByWord: Boolean = false,
+    val translationLanguage: String = "English", // "English", "Bahasa Melayu", "Arabic", "French", "Urdu"
     val reciterName: String = "Mishary Rashid Alafasy",
+    val selectedReciter: String = "Mishary Rashid Alafasy",
     val autoScrollAudio: Boolean = true
 )

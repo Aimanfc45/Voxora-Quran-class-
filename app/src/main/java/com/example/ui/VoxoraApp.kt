@@ -209,13 +209,17 @@ fun VoxoraApp(
                     SubScreen.TEACHER_DISCOVERY -> {
                         TeacherDiscoveryScreen(
                             repository = repository,
-                            selectedTeacherFromNav = selectedTeacherForDiscovery,
+                            onBookTeacherSuccess = {
+                                currentSubScreen = SubScreen.NONE
+                                currentDestination = MainDestination.CLASSES
+                            },
                             onShowSnackbar = showSnackbar
                         )
                     }
                     SubScreen.PROGRESS_DASHBOARD -> {
                         ProgressScreen(
-                            repository = repository
+                            repository = repository,
+                            onShowSnackbar = showSnackbar
                         )
                     }
                     SubScreen.NONE -> {
@@ -254,8 +258,11 @@ fun VoxoraApp(
                             MainDestination.CLASSES -> {
                                 ClassesScreen(
                                     repository = repository,
-                                    onJoinLiveClass = { quranClass ->
+                                    onJoinLiveClass = {
                                         currentSubScreen = SubScreen.LIVE_CLASS
+                                    },
+                                    onExploreTeachers = {
+                                        currentSubScreen = SubScreen.TEACHER_DISCOVERY
                                     },
                                     onShowSnackbar = showSnackbar
                                 )

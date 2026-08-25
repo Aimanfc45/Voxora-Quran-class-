@@ -7,6 +7,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -131,7 +134,7 @@ fun LiveClassScreen(
                         ),
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                        modifier = Modifier.padding(end = 8.dp)
+                        modifier = Modifier.padding(end = 8.dp).testTag("live_class_switch_mode_btn")
                     ) {
                         Text(
                             text = if (classMode == ClassType.GROUP) "Switch 1-on-1" else "Switch Group",
@@ -139,179 +142,610 @@ fun LiveClassScreen(
                             fontWeight = FontWeight.Bold
                         )
                     }
+
+                    // Leave Action Button
+                    IconButton(
+                        onClick = { showLeaveConfirmation = true },
+                        modifier = Modifier.testTag("live_class_leave_icon_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CallEnd,
+                            contentDescription = "Leave Call",
+                            tint = Color(0xFFEF4444)
+                        )
+                    }
                 }
             )
         },
         bottomBar = {
-            // Live Classroom Controls Bar
-            LiveClassControlsBar(
-                isMicMuted = isMicMuted,
-                isVideoOn = isVideoOn,
-                isSpeakerOn = isSpeakerOn,
-                isHandRaised = isHandRaised,
-                isSharingScreen = isSharingScreen,
-                unreadChatCount = 1,
-                participantsCount = participants.size,
-                onToggleMic = {
-                    repository.toggleMyMic()
-                    onShowSnackbar(if (isMicMuted) "Microphone Unmuted" else "Microphone Muted")
-                },
-                onToggleVideo = {
-                    repository.toggleMyVideo()
-                    onShowSnackbar(if (isVideoOn) "Camera Disabled" else "Camera Enabled")
-                },
-                onToggleSpeaker = {
-                    repository.toggleMySpeaker()
-                    onShowSnackbar(if (isSpeakerOn) "Audio Muted" else "Audio Enabled")
-                },
-                onToggleRaiseHand = {
-                    repository.toggleRaiseHand()
-                    onShowSnackbar(if (isHandRaised) "Lowered hand" else "✋ Raised hand for teacher recitation!")
-                },
-                onToggleShare = {
-                    isSharingScreen = !isSharingScreen
-                    onShowSnackbar(if (isSharingScreen) "Sharing your Quran Reading View" else "Stopped Sharing")
-                },
-                onOpenChat = { showChatSheet = true },
-                onOpenParticipants = { showParticipantsSheet = true },
-                onLeave = { showLeaveConfirmation = true }
-            )
+            // Live Classroom In-Call Action Control Bar
+            Surface(
+                color = DarkSurface,
+                tonalElevation = 8.dp,
+                shadowElevation = 8.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 1. Mic Toggle
+                    LiveControlButton(
+                        icon = if (isMicMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                        label = if (isMicMuted) "Unmute" else "Muted",
+                        isActive = !isMicMuted,
+                        activeColor = Emerald500,
+                        inactiveColor = Color(0xFFEF4444),
+                        onClick = {
+                            repository.toggleMyMic()
+                            onShowSnackbar(if (isMicMuted) "Microphone Unmuted" else "Microphone Muted")
+                        },
+                        testTag = "live_class_mic_toggle"
+                    )
+
+                    // 2. Video Toggle
+                    LiveControlButton(
+                        icon = if (isVideoOn) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                        label = if (isVideoOn) "Video On" else "Video Off",
+                        isActive = isVideoOn,
+                        activeColor = Emerald500,
+                        inactiveColor = Color.Gray,
+                        onClick = {
+                            repository.toggleMyVideo()
+                            onShowSnackbar(if (isVideoOn) "Camera Disabled" else "Camera Enabled")
+                        },
+                        testTag = "live_class_video_toggle"
+                    )
+
+                    // 3. Speaker Toggle
+                    LiveControlButton(
+                        icon = if (isSpeakerOn) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                        label = if (isSpeakerOn) "Speaker" else "Mute Spk",
+                        isActive = isSpeakerOn,
+                        activeColor = Emerald500,
+                        inactiveColor = Color.Gray,
+                        onClick = {
+                            repository.toggleMySpeaker()
+                            onShowSnackbar(if (isSpeakerOn) "Speaker Muted" else "Speaker Unmuted")
+                        },
+                        testTag = "live_class_speaker_toggle"
+                    )
+
+                    // 4. Raise Hand Button
+                    LiveControlButton(
+                        icon = Icons.Default.PanTool,
+                        label = if (isHandRaised) "Hand Up" else "Raise Hand",
+                        isActive = isHandRaised,
+                        activeColor = GoldPrimary,
+                        inactiveColor = Color.White.copy(alpha = 0.7f),
+                        onClick = {
+                            val raised = repository.toggleRaiseHand()
+                            onShowSnackbar(if (raised) "Hand raised! Ustaz notified." else "Hand lowered.")
+                        },
+                        testTag = "live_class_raise_hand_toggle"
+                    )
+
+                    // 5. Participants Sheet Toggle
+                    LiveControlButton(
+                        icon = Icons.Default.People,
+                        label = "${participants.size}",
+                        isActive = showParticipantsSheet,
+                        activeColor = GoldPrimary,
+                        inactiveColor = Color.White.copy(alpha = 0.7f),
+                        onClick = { showParticipantsSheet = true },
+                        testTag = "live_class_participants_btn"
+                    )
+
+                    // 6. Chat Button with Unread Badge
+                    Box {
+                        LiveControlButton(
+                            icon = Icons.Default.Chat,
+                            label = "Chat",
+                            isActive = showChatSheet,
+                            activeColor = GoldPrimary,
+                            inactiveColor = Color.White.copy(alpha = 0.7f),
+                            onClick = { showChatSheet = true },
+                            testTag = "live_class_chat_btn"
+                        )
+                        if (chatMessages.isNotEmpty() && !showChatSheet) {
+                            Badge(
+                                containerColor = GoldPrimary,
+                                contentColor = Emerald950,
+                                modifier = Modifier.align(Alignment.TopEnd)
+                            ) {
+                                Text("${chatMessages.size}", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    // 7. Screen/Page Share Toggle
+                    LiveControlButton(
+                        icon = if (isSharingScreen) Icons.Default.StopScreenShare else Icons.Default.ScreenShare,
+                        label = "Share",
+                        isActive = isSharingScreen,
+                        activeColor = GoldPrimary,
+                        inactiveColor = Color.White.copy(alpha = 0.7f),
+                        onClick = {
+                            isSharingScreen = !isSharingScreen
+                            onShowSnackbar(if (isSharingScreen) "Sharing Quran page with classroom" else "Stopped sharing")
+                        },
+                        testTag = "live_class_share_toggle"
+                    )
+                }
+            }
         }
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            contentPadding = PaddingValues(bottom = 16.dp)
+            contentPadding = PaddingValues(14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // 1. Teacher Video Area
+            // Prototype Status Notice
             item {
-                TeacherVideoCard(
-                    teacher = liveClass.teacher,
-                    lesson = liveClass.subject,
-                    participantsCount = participants.size,
-                    isAnnotationActive = teacherAnnotation != null
-                )
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Emerald900.copy(alpha = 0.4f),
+                    border = CardDefaults.outlinedCardBorder()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = GoldPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Interactive Classroom Prototype — Ready for WebRTC / LiveKit Realtime Audio & Video integration.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Emerald200
+                        )
+                    }
+                }
             }
 
-            // 2. Student Participant Thumbnails (if Group mode)
-            if (classMode == ClassType.GROUP) {
-                item {
-                    Column(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) {
-                        Row(
+            // Video Feeds Section (Adapts for 1-on-1 vs Group View)
+            item {
+                if (classMode == ClassType.ONE_ON_ONE) {
+                    // 1-on-1 Spotlight Layout (Large Teacher view + Student PIP)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(DarkSurface)
+                    ) {
+                        // Teacher Video Spotlight
+                        Image(
+                            painter = painterResource(id = liveClass.teacher.imageDrawableRes ?: R.drawable.img_teacher_ahmad),
+                            contentDescription = "Teacher Stream",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+
+                        // Top gradient overlay with teacher speaking indicator
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)
+                                    )
+                                )
+                                .padding(12.dp)
                         ) {
-                            Text(
-                                text = "Students in Room (${participants.size})",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = TextLightSecondary
-                            )
-                            Text(
-                                text = "Tap to view list",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Emerald400,
-                                modifier = Modifier.clickable { showParticipantsSheet = true }
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Emerald500
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.GraphicEq,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Speaking", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(liveClass.teacher.name, color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.Black.copy(alpha = 0.5f)
+                                ) {
+                                    Text("HD 1080p", color = Emerald300, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                }
+                            }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        // Student PIP (Picture-in-Picture)
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(12.dp)
+                                .size(width = 100.dp, height = 130.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            color = Emerald950,
+                            border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(GoldPrimary))
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                if (isVideoOn) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Emerald900),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("You", color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(DarkSurface),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.VideocamOff,
+                                            contentDescription = null,
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
 
+                                // Status icons in PIP
+                                Row(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(4.dp)
+                                ) {
+                                    if (isMicMuted) {
+                                        Icon(
+                                            imageVector = Icons.Default.MicOff,
+                                            contentDescription = null,
+                                            tint = Color(0xFFEF4444),
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
+                                    if (isHandRaised) {
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.PanTool,
+                                            contentDescription = null,
+                                            tint = GoldPrimary,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Group Classroom Video Grid
+                    Column {
+                        // Teacher Stream Header
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = DarkSurface)
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                Image(
+                                    painter = painterResource(id = liveClass.teacher.imageDrawableRes ?: R.drawable.img_teacher_ahmad),
+                                    contentDescription = "Teacher",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)
+                                            )
+                                        )
+                                        .padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Emerald600
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.GraphicEq,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(liveClass.teacher.name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Student Tiles Row
                         LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(horizontal = 2.dp)
                         ) {
                             items(participants.filterNot { it.isTeacher }) { p ->
-                                ParticipantMiniTile(participant = p)
+                                ParticipantTile(participant = p)
                             }
                         }
                     }
                 }
             }
 
-            // 3. Interactive Quran Reading & Annotation Panel
+            // Interactive Quran Whiteboard & Assessment Panel
             item {
-                QuranLiveClassPanel(
-                    surah = classSurah,
-                    highlightedVerse = highlightedVerseNum,
-                    teacherAnnotation = teacherAnnotation,
-                    onVerseClick = { verseNum ->
-                        repository.setClassHighlightedVerse(verseNum)
-                        onShowSnackbar("Highlighted Verse $verseNum for live recitation")
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = DarkSurface),
+                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(Emerald700))
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoStories,
+                                    contentDescription = null,
+                                    tint = GoldPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Interactive Quran Sheet",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = Color.White
+                                )
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = GoldPrimary.copy(alpha = 0.2f),
+                                border = CardDefaults.outlinedCardBorder()
+                            ) {
+                                Text(
+                                    text = "Surah ${classSurah.nameEnglish} (2:1–5)",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = GoldLight,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+
+                        if (teacherAnnotation != null) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Emerald900.copy(alpha = 0.8f),
+                                border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(GoldPrimary))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.EditNote,
+                                        contentDescription = null,
+                                        tint = GoldPrimary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = teacherAnnotation!!,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Verse recitation tiles
+                        classSurah.verses.take(5).forEach { verse ->
+                            val isHighlighted = verse.verseNumber == highlightedVerseNum
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clickable {
+                                        repository.setClassHighlightedVerse(verse.verseNumber)
+                                        onShowSnackbar("Highlighted Verse ${verse.verseNumber} for class recitation")
+                                    },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isHighlighted) Emerald900.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.05f)
+                                ),
+                                border = if (isHighlighted) CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(GoldPrimary)) else null
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (isHighlighted) GoldPrimary else Emerald800
+                                        ) {
+                                            Text(
+                                                text = "${verse.verseNumber}",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = if (isHighlighted) Emerald950 else Color.White,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+
+                                        if (isHighlighted) {
+                                            Text(
+                                                text = "🎯 Active Recitation Focus",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = GoldPrimary
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Text(
+                                        text = verse.textArabic,
+                                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp),
+                                        color = Color.White,
+                                        textAlign = TextAlign.End,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    if (verse.tajwidRuleHighlight != null) {
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        TajwidRuleBadge(ruleText = verse.tajwidRuleHighlight)
+                                    }
+                                }
+                            }
+                        }
                     }
-                )
+                }
             }
         }
     }
 
-    // Leave Class Confirmation Dialog
+    // Leave Confirmation Dialog
     if (showLeaveConfirmation) {
         AlertDialog(
             onDismissRequest = { showLeaveConfirmation = false },
-            title = { Text("Leave Live Class?") },
-            text = { Text("You are currently in an active session with ${liveClass.teacher.name}. Are you sure you want to exit the classroom?") },
+            title = {
+                Text(
+                    text = "Leave Live Class?",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Text("Are you sure you want to leave this live session? You can rejoin anytime from the Classes tab.")
+            },
             confirmButton = {
                 Button(
                     onClick = {
                         showLeaveConfirmation = false
                         onLeaveClass()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
                 ) {
-                    Text("Leave Class")
+                    Text("Leave Session")
                 }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showLeaveConfirmation = false }) {
+                TextButton(onClick = { showLeaveConfirmation = false }) {
                     Text("Stay in Class")
                 }
             }
         )
     }
 
-    // Live Chat Sheet Modal
+    // In-Class Chat Sheet
     if (showChatSheet) {
         ModalBottomSheet(
             onDismissRequest = { showChatSheet = false },
-            containerColor = DarkSurface
+            containerColor = DarkSurface,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(450.dp)
-                    .padding(16.dp)
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 24.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Class Live Chat",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White
-                    )
-                    IconButton(onClick = { showChatSheet = false }) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = Color.White)
-                    }
-                }
+                Text(
+                    text = "Classroom Discussion",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White
+                )
 
-                Divider(color = DarkSurfaceVariant)
+                Spacer(modifier = Modifier.height(12.dp))
 
                 LazyColumn(
                     modifier = Modifier
-                        .weight(1f)
-                        .padding(vertical = 8.dp),
+                        .fillMaxWidth()
+                        .height(280.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(chatMessages) { msg ->
-                        ChatMessageItem(message = msg)
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (msg.isMe) Emerald800 else if (msg.isTeacher) GoldPrimary.copy(alpha = 0.2f) else Emerald950
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = msg.senderName + if (msg.isTeacher) " (Teacher)" else "",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = if (msg.isTeacher) GoldPrimary else Emerald300
+                                    )
+                                    Text(
+                                        text = msg.timestamp,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.Gray
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = msg.message,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White
+                                )
+                            }
+                        }
                     }
                 }
 
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Chat Input Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -322,12 +756,12 @@ fun LiveClassScreen(
                         modifier = Modifier
                             .weight(1f)
                             .testTag("class_chat_input"),
-                        placeholder = { Text("Type question or reflection...", color = TextLightSecondary) },
+                        placeholder = { Text("Ask a Tajwid question or share note...", color = Color.Gray) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
-                            focusedBorderColor = Emerald400,
-                            unfocusedBorderColor = DarkSurfaceVariant
+                            focusedBorderColor = Emerald500,
+                            unfocusedBorderColor = Emerald800
                         ),
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp)
@@ -359,36 +793,40 @@ fun LiveClassScreen(
         }
     }
 
-    // Participants List Sheet Modal
+    // In-Class Participants Sheet
     if (showParticipantsSheet) {
         ModalBottomSheet(
             onDismissRequest = { showParticipantsSheet = false },
-            containerColor = DarkSurface
+            containerColor = DarkSurface,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(400.dp)
-                    .padding(16.dp)
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 32.dp)
             ) {
                 Text(
                     text = "Participants (${participants.size})",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                     color = Color.White
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     items(participants) { p ->
                         Surface(
-                            modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
-                            color = DarkSurfaceVariant
+                            color = Emerald950
                         ) {
                             Row(
-                                modifier = Modifier.padding(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -402,41 +840,46 @@ fun LiveClassScreen(
                                     ) {
                                         Text(
                                             text = p.name.take(1),
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (p.isTeacher) Emerald900 else Color.White
+                                            color = if (p.isTeacher) Emerald950 else Color.White,
+                                            fontWeight = FontWeight.Bold
                                         )
                                     }
-                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
                                     Column {
                                         Text(
                                             text = p.name,
-                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                             color = Color.White
                                         )
                                         Text(
                                             text = p.role,
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = if (p.isTeacher) GoldLight else TextLightSecondary
+                                            color = if (p.isTeacher) GoldPrimary else Emerald300
                                         )
                                     }
                                 }
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     if (p.isHandRaised) {
-                                        Text("✋", fontSize = 18.sp)
+                                        Icon(
+                                            imageVector = Icons.Default.PanTool,
+                                            contentDescription = "Hand Raised",
+                                            tint = GoldPrimary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
                                         Spacer(modifier = Modifier.width(8.dp))
                                     }
                                     Icon(
                                         imageVector = if (p.isMicMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                                        contentDescription = null,
+                                        contentDescription = "Mic Status",
                                         tint = if (p.isMicMuted) Color(0xFFEF4444) else Emerald400,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Icon(
                                         imageVector = if (p.isVideoOn) Icons.Default.Videocam else Icons.Default.VideocamOff,
-                                        contentDescription = null,
-                                        tint = if (p.isVideoOn) Emerald400 else TextLightSecondary,
+                                        contentDescription = "Video Status",
+                                        tint = if (p.isVideoOn) Emerald400 else Color.Gray,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -450,492 +893,105 @@ fun LiveClassScreen(
 }
 
 @Composable
-private fun TeacherVideoCard(
-    teacher: com.example.data.model.Teacher,
-    lesson: String,
-    participantsCount: Int,
-    isAnnotationActive: Boolean
+private fun LiveControlButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    isActive: Boolean,
+    activeColor: Color,
+    inactiveColor: Color,
+    onClick: () -> Unit,
+    testTag: String
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-            .height(210.dp)
-            .testTag("teacher_video_area"),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkSurface)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { onClick() }.testTag(testTag)
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (teacher.imageDrawableRes != null) {
-                Image(
-                    painter = painterResource(id = teacher.imageDrawableRes),
-                    contentDescription = teacher.name,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(Emerald900, DarkBackground)
-                            )
-                        )
-                )
-            }
-
-            // Dark gradient overlay for text readability
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = 0.3f),
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.85f)
-                            )
-                        )
-                    )
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(if (isActive) activeColor.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.08f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = if (isActive) activeColor else inactiveColor,
+                modifier = Modifier.size(20.dp)
             )
-
-            // Top Badges
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color.Black.copy(alpha = 0.6f)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFEF4444))
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "LIVE",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White
-                        )
-                    }
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Emerald900.copy(alpha = 0.8f)
-                ) {
-                    Text(
-                        text = "$participantsCount Students",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = Emerald300,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-            }
-
-            // Bottom Teacher Info
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomStart)
-                    .padding(14.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column {
-                        Text(
-                            text = teacher.name,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White
-                        )
-                        Text(
-                            text = lesson,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Emerald300
-                        )
-                    }
-
-                    // Speaking Audio Waves Indicator
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(3.dp)
-                    ) {
-                        Box(modifier = Modifier.size(3.dp, 12.dp).background(Emerald400, RoundedCornerShape(2.dp)))
-                        Box(modifier = Modifier.size(3.dp, 18.dp).background(Emerald400, RoundedCornerShape(2.dp)))
-                        Box(modifier = Modifier.size(3.dp, 10.dp).background(Emerald400, RoundedCornerShape(2.dp)))
-                    }
-                }
-            }
         }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (isActive) activeColor else Color.White.copy(alpha = 0.7f),
+            fontSize = 10.sp
+        )
     }
 }
 
 @Composable
-private fun ParticipantMiniTile(participant: Participant) {
+private fun ParticipantTile(participant: Participant) {
     Surface(
         modifier = Modifier
-            .size(80.dp, 90.dp)
-            .clip(RoundedCornerShape(14.dp)),
-        color = DarkSurfaceVariant,
-        border = if (participant.isHandRaised) CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.ui.graphics.SolidColor(GoldPrimary)
-        ) else CardDefaults.outlinedCardBorder()
+            .size(width = 110.dp, height = 90.dp),
+        shape = RoundedCornerShape(14.dp),
+        color = DarkSurface,
+        border = if (participant.isHandRaised) CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(GoldPrimary)) else CardDefaults.outlinedCardBorder()
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(6.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(32.dp)
                         .clip(CircleShape)
-                        .background(Emerald700),
+                        .background(Emerald800),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = participant.name.take(1),
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = participant.name.split(" ").firstOrNull() ?: "",
+                    text = participant.name.take(10),
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White,
                     maxLines = 1
                 )
             }
 
-            if (participant.isHandRaised) {
-                Text(
-                    text = "✋",
-                    fontSize = 14.sp,
-                    modifier = Modifier.align(Alignment.TopEnd)
-                )
-            }
-
-            Icon(
-                imageVector = if (participant.isMicMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                contentDescription = null,
-                tint = if (participant.isMicMuted) Color(0xFFEF4444) else Emerald400,
-                modifier = Modifier
-                    .size(12.dp)
-                    .align(Alignment.BottomStart)
-            )
-        }
-    }
-}
-
-@Composable
-private fun QuranLiveClassPanel(
-    surah: com.example.data.model.Surah,
-    highlightedVerse: Int,
-    teacherAnnotation: String?,
-    onVerseClick: (Int) -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .testTag("quran_live_reading_panel"),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+            // Top status badges
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                if (participant.isHandRaised) {
                     Icon(
-                        imageVector = Icons.Default.MenuBook,
-                        contentDescription = null,
-                        tint = Emerald700,
-                        modifier = Modifier.size(20.dp)
+                        imageVector = Icons.Default.PanTool,
+                        contentDescription = "Hand Raised",
+                        tint = GoldPrimary,
+                        modifier = Modifier.size(12.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Shared Quran — Surah ${surah.nameEnglish}",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                } else {
+                    Spacer(modifier = Modifier.size(12.dp))
                 }
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = GoldContainer
-                ) {
-                    Text(
-                        text = "Live Shared View",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = GoldOnContainer,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-            }
 
-            if (teacherAnnotation != null) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = Emerald50
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("📌", fontSize = 16.sp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = teacherAnnotation,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                color = Emerald900
-                            )
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Verses for live recitation drill
-            surah.verses.forEach { verse ->
-                val isHighlighted = verse.verseNumber == highlightedVerse
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onVerseClick(verse.verseNumber) },
-                    color = if (isHighlighted) GoldContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    border = if (isHighlighted) CardDefaults.outlinedCardBorder().copy(
-                        brush = androidx.compose.ui.graphics.SolidColor(GoldPrimary)
-                    ) else null
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Verse ${verse.verseNumber}",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isHighlighted) GoldDark else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            )
-                            if (verse.tajwidRuleHighlight != null) {
-                                TajwidRuleBadge(ruleText = verse.tajwidRuleHighlight)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            text = verse.textArabic,
-                            fontSize = 22.sp,
-                            lineHeight = 36.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.End,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Text(
-                            text = verse.translationEnglish,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun LiveClassControlsBar(
-    isMicMuted: Boolean,
-    isVideoOn: Boolean,
-    isSpeakerOn: Boolean,
-    isHandRaised: Boolean,
-    isSharingScreen: Boolean,
-    unreadChatCount: Int,
-    participantsCount: Int,
-    onToggleMic: () -> Unit,
-    onToggleVideo: () -> Unit,
-    onToggleSpeaker: () -> Unit,
-    onToggleRaiseHand: () -> Unit,
-    onToggleShare: () -> Unit,
-    onOpenChat: () -> Unit,
-    onOpenParticipants: () -> Unit,
-    onLeave: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = DarkSurface,
-        tonalElevation = 8.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Mic
-            IconButton(
-                onClick = onToggleMic,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(if (isMicMuted) Color(0xFFEF4444).copy(alpha = 0.2f) else Emerald700.copy(alpha = 0.2f))
-                    .testTag("live_mic_control")
-            ) {
                 Icon(
-                    imageVector = if (isMicMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                    contentDescription = "Mic",
-                    tint = if (isMicMuted) Color(0xFFEF4444) else Emerald400
-                )
-            }
-
-            // Video
-            IconButton(
-                onClick = onToggleVideo,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(if (!isVideoOn) Color(0xFFEF4444).copy(alpha = 0.2f) else Emerald700.copy(alpha = 0.2f))
-                    .testTag("live_video_control")
-            ) {
-                Icon(
-                    imageVector = if (isVideoOn) Icons.Default.Videocam else Icons.Default.VideocamOff,
-                    contentDescription = "Video",
-                    tint = if (isVideoOn) Emerald400 else Color(0xFFEF4444)
-                )
-            }
-
-            // Raise Hand
-            IconButton(
-                onClick = onToggleRaiseHand,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(if (isHandRaised) GoldPrimary else DarkSurfaceVariant)
-                    .testTag("live_raise_hand_control")
-            ) {
-                Text("✋", fontSize = 18.sp)
-            }
-
-            // Chat
-            IconButton(
-                onClick = onOpenChat,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(DarkSurfaceVariant)
-                    .testTag("live_chat_control")
-            ) {
-                BadgedBox(
-                    badge = {
-                        if (unreadChatCount > 0) {
-                            Badge(containerColor = GoldPrimary, contentColor = Emerald900) {
-                                Text("$unreadChatCount", fontSize = 9.sp)
-                            }
-                        }
-                    }
-                ) {
-                    Icon(imageVector = Icons.Default.ChatBubbleOutline, contentDescription = "Chat", tint = Color.White)
-                }
-            }
-
-            // Participants
-            IconButton(
-                onClick = onOpenParticipants,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(DarkSurfaceVariant)
-                    .testTag("live_participants_control")
-            ) {
-                Icon(imageVector = Icons.Default.PeopleOutline, contentDescription = "Participants", tint = Color.White)
-            }
-
-            // Leave Button
-            FilledIconButton(
-                onClick = onLeave,
-                modifier = Modifier
-                    .size(44.dp)
-                    .testTag("live_leave_button"),
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xFFDC2626))
-            ) {
-                Icon(imageVector = Icons.Default.CallEnd, contentDescription = "Leave", tint = Color.White)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChatMessageItem(message: ClassChatMessage) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = if (message.isMe) Alignment.End else Alignment.Start
-    ) {
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = when {
-                message.isMe -> Emerald700
-                message.isTeacher -> GoldDark
-                else -> DarkSurfaceVariant
-            },
-            modifier = Modifier.widthIn(max = 280.dp)
-        ) {
-            Column(modifier = Modifier.padding(10.dp)) {
-                Row(
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = message.senderName,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = if (message.isTeacher) GoldLight else Color.White.copy(alpha = 0.9f)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = message.timestamp,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                        color = Color.White.copy(alpha = 0.6f)
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = message.message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White
+                    imageVector = if (participant.isMicMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                    contentDescription = null,
+                    tint = if (participant.isMicMuted) Color(0xFFEF4444) else Emerald400,
+                    modifier = Modifier.size(12.dp)
                 )
             }
         }
