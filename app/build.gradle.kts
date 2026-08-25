@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Base64
 
 plugins {
   alias(libs.plugins.android.application)
@@ -23,19 +24,39 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
+  // Ensure a test debug.keystore exists if no custom keystore is configured
+  val localDebugKeystore = file("${rootDir}/debug.keystore")
+  val base64KeystoreFile = file("${rootDir}/debug.keystore.base64")
+  if (!localDebugKeystore.exists() && base64KeystoreFile.exists()) {
+    try {
+      val decoded = Base64.getDecoder().decode(base64KeystoreFile.readText().trim())
+      localDebugKeystore.writeBytes(decoded)
+    } catch (_: Exception) {}
+  }
+
+  val customKeystorePath = System.getenv("KEYSTORE_PATH") ?: System.getenv("CM_KEYSTORE_PATH")
+  val customKeystoreFile = customKeystorePath?.let { file(it) }
+
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      val keystoreFile = file(keystorePath)
-      if (keystoreFile.exists()) {
-        storeFile = keystoreFile
-        storePassword = System.getenv("STORE_PASSWORD")
-        keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
-        keyPassword = System.getenv("KEY_PASSWORD")
+      enableV1Signing = true
+      enableV2Signing = true
+      if (customKeystoreFile != null && customKeystoreFile.exists()) {
+        storeFile = customKeystoreFile
+        storePassword = System.getenv("STORE_PASSWORD") ?: System.getenv("CM_KEYSTORE_PASSWORD")
+        keyAlias = System.getenv("KEY_ALIAS") ?: System.getenv("CM_KEY_ALIAS") ?: "upload"
+        keyPassword = System.getenv("KEY_PASSWORD") ?: System.getenv("CM_KEY_PASSWORD")
+      } else {
+        storeFile = if (localDebugKeystore.exists()) localDebugKeystore else file("${rootDir}/debug.keystore")
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
       }
     }
     create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
+      enableV1Signing = true
+      enableV2Signing = true
+      storeFile = if (localDebugKeystore.exists()) localDebugKeystore else file("${rootDir}/debug.keystore")
       storePassword = "android"
       keyAlias = "androiddebugkey"
       keyPassword = "android"
@@ -47,12 +68,7 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      if (file(keystorePath).exists()) {
-        signingConfig = signingConfigs.getByName("release")
-      } else if (file("${rootDir}/debug.keystore").exists()) {
-        signingConfig = signingConfigs.getByName("debugConfig")
-      }
+      signingConfig = signingConfigs.getByName("release")
     }
     debug { signingConfig = signingConfigs.getByName("debugConfig") }
   }

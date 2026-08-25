@@ -11,6 +11,27 @@ workflows:
       - name: Set up Android SDK environment
         script: |
           echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
+      - name: Set up Keystore and Signing
+        script: |
+          # If Codemagic UI Keystore environment variables exist, decode them
+          if [ -n "$CM_KEYSTORE" ]; then
+            echo "$CM_KEYSTORE" | base64 --decode > "$CM_BUILD_DIR/release.keystore"
+            export KEYSTORE_PATH="$CM_BUILD_DIR/release.keystore"
+            export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
+            export KEY_ALIAS="$CM_KEY_ALIAS"
+            export KEY_PASSWORD="$CM_KEY_PASSWORD"
+          elif [ -f "$CM_BUILD_DIR/debug.keystore.base64" ] && [ ! -f "$CM_BUILD_DIR/debug.keystore" ]; then
+            echo "Restoring testing keystore from base64..."
+            base64 -d "$CM_BUILD_DIR/debug.keystore.base64" > "$CM_BUILD_DIR/debug.keystore" 2>/dev/null || \
+            base64 -D "$CM_BUILD_DIR/debug.keystore.base64" > "$CM_BUILD_DIR/debug.keystore" 2>/dev/null || \
+            openssl base64 -d -in "$CM_BUILD_DIR/debug.keystore.base64" -out "$CM_BUILD_DIR/debug.keystore"
+          fi
+
+          # Ensure a valid testing keystore exists so release build is signed and installable
+          if [ ! -f "$CM_BUILD_DIR/debug.keystore" ] && [ ! -f "$KEYSTORE_PATH" ]; then
+            echo "Generating test signing keystore..."
+            keytool -genkey -v -keystore "$CM_BUILD_DIR/debug.keystore" -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
+          fi
       - name: Verify and prepare Gradle Wrapper
         script: |
           chmod +x gradlew
@@ -21,7 +42,7 @@ workflows:
             chmod +x gradlew
           fi
           ./gradlew --version
-      - name: Build Release APK
+      - name: Build Signed Release APK
         script: |
           ./gradlew :app:assembleRelease --stacktrace
     artifacts:
