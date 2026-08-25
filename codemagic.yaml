@@ -1,0 +1,26 @@
+workflows:
+  android-apk-workflow:
+    name: Voxora Quran Class - Android APK Build
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      vars:
+        PACKAGE_NAME: "com.aistudio.voxoraquran.app"
+      java: 17
+    scripts:
+      - name: Set up Android SDK environment
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
+      - name: Build Release APK with Gradle Wrapper
+        script: |
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --stacktrace
+    artifacts:
+      - app/build/outputs/apk/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - cipmore67@gmail.com
+        notify:
+          success: true
+          failure: true
