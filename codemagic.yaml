@@ -11,9 +11,16 @@ workflows:
       - name: Set up Android SDK environment
         script: |
           echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
-      - name: Build Release APK with Gradle Wrapper
+      - name: Verify and prepare Gradle Wrapper
         script: |
           chmod +x gradlew
+          if [ ! -s gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Regenerating Gradle wrapper jar..."
+            gradle wrapper --gradle-version 9.3.1
+            chmod +x gradlew
+          fi
+      - name: Build Release APK
+        script: |
           ./gradlew :app:assembleRelease --stacktrace
     artifacts:
       - app/build/outputs/apk/**/*.apk
