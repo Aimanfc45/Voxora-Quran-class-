@@ -1,0 +1,27 @@
+# Ensure binary files are never corrupted by Git CRLF line ending conversion
+*.jar binary
+*.png binary
+*.webp binary
+*.keystore binary
+*.jks binary
+*.so binary
+*.aar binary
+
+# Unix scripts must have LF line endings
+gradlew text eol=lf
+*.sh text eol=lf
+
+# Windows scripts must have CRLF line endings
+gradlew.bat text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Source files
+*.kt text
+*.kts text
+*.xml text
+*.json text
+*.yaml text
+*.yml text
+*.properties text
+*.md text

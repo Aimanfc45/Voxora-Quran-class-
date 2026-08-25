@@ -14,11 +14,13 @@ workflows:
       - name: Verify and prepare Gradle Wrapper
         script: |
           chmod +x gradlew
-          if [ ! -s gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "Regenerating Gradle wrapper jar..."
+          if ! jar tf gradle/wrapper/gradle-wrapper.jar >/dev/null 2>&1; then
+            echo "Gradle wrapper JAR is invalid or corrupted. Restoring Gradle wrapper..."
+            curl -sSL "https://raw.githubusercontent.com/gradle/gradle/v9.3.1/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar || \
             gradle wrapper --gradle-version 9.3.1
             chmod +x gradlew
           fi
+          ./gradlew --version
       - name: Build Release APK
         script: |
           ./gradlew :app:assembleRelease --stacktrace
