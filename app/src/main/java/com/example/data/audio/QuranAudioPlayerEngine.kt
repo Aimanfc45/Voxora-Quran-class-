@@ -17,7 +17,8 @@ import kotlinx.coroutines.flow.update
 class QuranAudioPlayerEngine(
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob()),
     private val onVerseChangedListener: ((surahNumber: Int, verseNumber: Int) -> Unit)? = null,
-    private val getSurahVerseCount: ((surahNumber: Int) -> Int)? = null
+    private val getSurahVerseCount: ((surahNumber: Int) -> Int)? = null,
+    private val downloadManager: QuranAudioDownloadManager? = null
 ) : IQuranAudioService {
 
     private val TAG = "QuranAudioEngine"
@@ -83,22 +84,29 @@ class QuranAudioPlayerEngine(
         }
     }
 
-    private fun getReciterFolder(reciterName: String): String {
-        return when (reciterName) {
-            "Abdul Basit Abdus-Samad", "Abdul Basit Abdul Samad" -> "Abdul_Basit_Murattal_192kbps"
-            "Mahmoud Khalil Al-Husary", "Mahmoud Khalil Al-Hussary" -> "Husary_128kbps"
-            "Mohamed Siddiq Al-Minshawi", "Mohamed Siddiq El-Minshawi" -> "Minshawy_Murattal_128kbps"
-            "Saad Al-Ghamdi" -> "Ghamadi_40kbps"
-            "Maher Al-Muaiqly" -> "Maher_AlMuaiqly_64kbps"
-            "Abdul Rahman Al-Sudais", "Abdurrahmaan As-Sudais" -> "Abdurrahmaan_As-Sudais_192kbps"
-            "Yasser Al-Dosari", "Yasser Ad-Dussary" -> "Yasser_Ad-Dussary_128kbps"
-            "Nasser Al-Qatami" -> "Nasser_Alqatami_128kbps"
-            "Sheikh Juhany", "Abdullah Al-Juhany" -> "Abdullah_Basfar_192kbps"
-            else -> "Alafasy_128kbps" // Default: Mishary Rashid Alafasy
+    fun getReciterFolder(reciterName: String): String {
+        return when {
+            reciterName.contains("Sudais", ignoreCase = true) -> "Abdurrahmaan_As-Sudais_192kbps"
+            reciterName.contains("Juhan", ignoreCase = true) -> "Abdullaah_3awwaad_Al-Juhaynee_128kbps"
+            reciterName.contains("Abdul Basit", ignoreCase = true) -> "Abdul_Basit_Murattal_192kbps"
+            reciterName.contains("Husary", ignoreCase = true) || reciterName.contains("Hussary", ignoreCase = true) -> "Husary_128kbps"
+            reciterName.contains("Minshawi", ignoreCase = true) || reciterName.contains("Minshawy", ignoreCase = true) -> "Minshawy_Murattal_128kbps"
+            reciterName.contains("Ghamdi", ignoreCase = true) || reciterName.contains("Ghamadi", ignoreCase = true) -> "Ghamadi_40kbps"
+            reciterName.contains("Muaiqly", ignoreCase = true) -> "Maher_AlMuaiqly_64kbps"
+            reciterName.contains("Dosari", ignoreCase = true) || reciterName.contains("Dussary", ignoreCase = true) -> "Yasser_Ad-Dussary_128kbps"
+            reciterName.contains("Qatami", ignoreCase = true) -> "Nasser_Alqatami_128kbps"
+            reciterName.contains("Shuraim", ignoreCase = true) || reciterName.contains("Shuraym", ignoreCase = true) -> "Saood_ash-Shuraym_128kbps"
+            reciterName.contains("Shatri", ignoreCase = true) || reciterName.contains("Shaatree", ignoreCase = true) -> "Abu_Bakr_Ash-Shaatree_128kbps"
+            reciterName.contains("Ali Jaber", ignoreCase = true) -> "Ali_Jaber_64kbps"
+            else -> "Alafasy_128kbps" // Default: Sheikh Mishary Rashid Alafasy
         }
     }
 
     fun buildVerifiedAudioUrl(surah: Int, verse: Int, reciterName: String): String {
+        val localFile = downloadManager?.getLocalVerseAudioFile(surah, verse, reciterName)
+        if (localFile != null && localFile.exists()) {
+            return localFile.absolutePath
+        }
         val folder = getReciterFolder(reciterName)
         val sStr = surah.toString().padStart(3, '0')
         val vStr = verse.toString().padStart(3, '0')

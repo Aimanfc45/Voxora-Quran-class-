@@ -619,6 +619,30 @@ object MockQuranData {
 
     val reciterList: List<ReciterInfo> = listOf(
         ReciterInfo(
+            id = "sudais",
+            name = "Abdul Rahman Al-Sudais",
+            arabicName = "عبد الرحمن السديس",
+            country = "Saudi Arabia",
+            flagEmoji = "🇸🇦",
+            style = "Murattal",
+            audioFolder = "Abdurrahmaan_As-Sudais_192kbps",
+            bitRate = "192kbps",
+            isFavorite = true,
+            description = "Chief Imam and Khatib of the Grand Mosque in Makkah (Masjid al-Haram). Globally beloved voice with impassioned cadence."
+        ),
+        ReciterInfo(
+            id = "juhany",
+            name = "Sheikh Abdullah Al-Juhani",
+            arabicName = "عبد الله عواد الجهني",
+            country = "Saudi Arabia",
+            flagEmoji = "🇸🇦",
+            style = "Murattal",
+            audioFolder = "Abdullaah_3awwaad_Al-Juhaynee_128kbps",
+            bitRate = "128kbps",
+            isFavorite = true,
+            description = "Imam of the Grand Mosque in Makkah (Masjid al-Haram). Authentic Murattal recordings with crystal-clear Tajwid and soothing resonance."
+        ),
+        ReciterInfo(
             id = "alafasy",
             name = "Mishary Rashid Alafasy",
             arabicName = "مشاري بن راشد العفاسي",
@@ -691,18 +715,6 @@ object MockQuranData {
             description = "Celebrated Imam of the Grand Mosque in Makkah (Masjid al-Haram) known for stirring Taraweeh prayers."
         ),
         ReciterInfo(
-            id = "sudais",
-            name = "Abdul Rahman Al-Sudais",
-            arabicName = "عبد الرحمن السديس",
-            country = "Saudi Arabia",
-            flagEmoji = "🇸🇦",
-            style = "Murattal",
-            audioFolder = "Abdurrahmaan_As-Sudais_192kbps",
-            bitRate = "192kbps",
-            isFavorite = true,
-            description = "Chief Imam of the Grand Mosque in Makkah. Globally recognized voice characterized by passionate, rhythmic recitation."
-        ),
-        ReciterInfo(
             id = "dosari",
             name = "Yasser Al-Dosari",
             arabicName = "ياسر الدوسري",
@@ -715,6 +727,30 @@ object MockQuranData {
             description = "Imam at Masjid al-Haram with a unique, powerful, and deeply captivating melodic voice."
         ),
         ReciterInfo(
+            id = "shuraim",
+            name = "Saud Ash-Shuraim",
+            arabicName = "سعود الشريم",
+            country = "Saudi Arabia",
+            flagEmoji = "🇸🇦",
+            style = "Murattal",
+            audioFolder = "Saood_ash-Shuraym_128kbps",
+            bitRate = "128kbps",
+            isFavorite = false,
+            description = "Former Imam and Khatib of the Grand Mosque in Makkah. Fast-paced, disciplined Murattal recitation."
+        ),
+        ReciterInfo(
+            id = "shatri",
+            name = "Abu Bakr Ash-Shatri",
+            arabicName = "أبو بكر الشاطري",
+            country = "Saudi Arabia",
+            flagEmoji = "🇸🇦",
+            style = "Murattal",
+            audioFolder = "Abu_Bakr_Ash-Shaatree_128kbps",
+            bitRate = "128kbps",
+            isFavorite = false,
+            description = "Renowned Saudi Qari with warm, harmonious, and highly meditative recitation style."
+        ),
+        ReciterInfo(
             id = "qatami",
             name = "Nasser Al-Qatami",
             arabicName = "ناصر القطامي",
@@ -725,18 +761,6 @@ object MockQuranData {
             bitRate = "128kbps",
             isFavorite = false,
             description = "Imam of the Princess Latifa Mosque in Riyadh. Master of emotional pacing and crystal-clear pronunciation."
-        ),
-        ReciterInfo(
-            id = "juhany",
-            name = "Sheikh Juhany",
-            arabicName = "عبد الله الجهني",
-            country = "Saudi Arabia",
-            flagEmoji = "🇸🇦",
-            style = "Murattal",
-            audioFolder = "Abdullah_Basfar_192kbps",
-            bitRate = "192kbps",
-            isFavorite = false,
-            description = "Esteemed Imam of the Grand Mosque in Makkah (Masjid al-Haram) with rich, authoritative recitation tone."
         )
     )
 

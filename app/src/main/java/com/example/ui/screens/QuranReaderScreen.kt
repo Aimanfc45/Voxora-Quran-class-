@@ -202,20 +202,6 @@ fun QuranReaderScreen(
                     }
                 }
             )
-        },
-        bottomBar = {
-            // Persistent / Floating Mini Audio Player when audio is active
-            if (audioState.isPlaying || audioState.currentPositionSeconds > 0f) {
-                QuranMiniAudioPlayer(
-                    audioState = audioState,
-                    surahName = selectedSurah.nameEnglish,
-                    onExpandControls = { showAudioDetailSheet = true },
-                    onTogglePlay = { repository.toggleAudioPlayback() },
-                    onNextVerse = { repository.nextVerse() },
-                    onPreviousVerse = { repository.previousVerse() },
-                    onClose = { repository.stopAudio() }
-                )
-            }
         }
     ) { paddingValues ->
         Box(

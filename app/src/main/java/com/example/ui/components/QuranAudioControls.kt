@@ -4,6 +4,8 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,13 +19,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.audio.AudioDownloadStatus
 import com.example.data.model.AudioRepeatMode
 import com.example.data.model.QuranAudioState
 import com.example.data.repository.VoxoraRepository
 import com.example.ui.theme.*
 
+/**
+ * Sticky Mini Audio Player shown when audio is loaded/playing across the app.
+ */
 @Composable
 fun QuranMiniAudioPlayer(
     audioState: QuranAudioState,
@@ -40,15 +47,15 @@ fun QuranMiniAudioPlayer(
             .fillMaxWidth()
             .clickable { onExpandControls() }
             .testTag("quran_mini_audio_player"),
-        shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
-        color = Emerald900,
+        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+        color = Emerald950,
         tonalElevation = 8.dp,
         shadowElevation = 8.dp
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Mini progress indicator bar
             val progress = if (audioState.totalDurationSeconds > 0) {
-                audioState.currentPositionSeconds / audioState.totalDurationSeconds
+                (audioState.currentPositionSeconds / audioState.totalDurationSeconds).coerceIn(0f, 1f)
             } else 0f
 
             if (audioState.isLoading) {
@@ -61,7 +68,7 @@ fun QuranMiniAudioPlayer(
                 )
             } else {
                 LinearProgressIndicator(
-                    progress = { progress.coerceIn(0f, 1f) },
+                    progress = { progress },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(3.dp),
@@ -79,32 +86,54 @@ fun QuranMiniAudioPlayer(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = audioState.errorMessage,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White
-                        )
-                        Text(
-                            text = "Tap to Retry",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = GoldLight,
-                            modifier = Modifier.clickable { onTogglePlay() }
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.WarningAmber,
+                                contentDescription = null,
+                                tint = GoldLight,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = audioState.errorMessage ?: "Audio playback error",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Surface(
+                            onClick = onTogglePlay,
+                            shape = RoundedCornerShape(6.dp),
+                            color = GoldPrimary
+                        ) {
+                            Text(
+                                text = "Retry",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = Emerald950,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
             }
 
+            // Main Mini Player Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                // Info Section
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
@@ -118,7 +147,7 @@ fun QuranMiniAudioPlayer(
                     ) {
                         if (audioState.isLoading) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
+                                modifier = Modifier.size(18.dp),
                                 color = GoldPrimary,
                                 strokeWidth = 2.dp
                             )
@@ -132,27 +161,35 @@ fun QuranMiniAudioPlayer(
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
 
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "$surahName • Ayah ${audioState.verseNumber}",
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = "${audioState.reciterName} • ${formatTime(audioState.currentPositionSeconds)} / ${formatTime(audioState.totalDurationSeconds)}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Emerald200
+                            color = Emerald200,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // Controls Section
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
                     IconButton(
                         onClick = onPreviousVerse,
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(38.dp)
                             .testTag("mini_player_prev_button")
                     ) {
                         Icon(
@@ -165,7 +202,7 @@ fun QuranMiniAudioPlayer(
                     IconButton(
                         onClick = onTogglePlay,
                         modifier = Modifier
-                            .size(42.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
                             .background(GoldPrimary)
                             .testTag("mini_player_play_button")
@@ -188,7 +225,7 @@ fun QuranMiniAudioPlayer(
                     IconButton(
                         onClick = onNextVerse,
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(38.dp)
                             .testTag("mini_player_next_button")
                     ) {
                         Icon(
@@ -216,6 +253,10 @@ fun QuranMiniAudioPlayer(
     }
 }
 
+/**
+ * Full Quran Audio Detail Bottom Sheet.
+ * Complete with authentic reciters picker, smooth scrubber, speed selection, repeat modes, and error recovery.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuranAudioDetailBottomSheet(
@@ -224,10 +265,7 @@ fun QuranAudioDetailBottomSheet(
     repository: VoxoraRepository,
     onDismiss: () -> Unit
 ) {
-    val recitersList by repository.reciters.collectAsState()
     var showReciterPicker by remember { mutableStateOf(false) }
-    var reciterSearchQuery by remember { mutableStateOf("") }
-    var showRepeatCountDialog by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -237,8 +275,8 @@ fun QuranAudioDetailBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 36.dp),
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Header Info
@@ -251,7 +289,8 @@ fun QuranAudioDetailBottomSheet(
             Text(
                 text = "$surahName — Ayah ${audioState.verseNumber}",
                 style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                color = Color.White
+                color = Color.White,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
 
             // Reciter Badge & Selector Button
@@ -259,36 +298,36 @@ fun QuranAudioDetailBottomSheet(
             Surface(
                 onClick = { showReciterPicker = true },
                 shape = RoundedCornerShape(16.dp),
-                color = Emerald800.copy(alpha = 0.6f),
+                color = Emerald800.copy(alpha = 0.7f),
                 border = CardDefaults.outlinedCardBorder()
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Mic,
+                        imageVector = Icons.Default.RecordVoiceOver,
                         contentDescription = null,
                         tint = GoldPrimary,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = audioState.reciterName,
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = Color.White
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Icon(
                         imageVector = Icons.Default.ArrowDropDown,
                         contentDescription = null,
-                        tint = Emerald200,
-                        modifier = Modifier.size(16.dp)
+                        tint = GoldLight,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
 
-            // Error notice banner
+            // Error notice banner with Retry
             if (audioState.errorMessage != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Surface(
@@ -301,12 +340,23 @@ fun QuranAudioDetailBottomSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = audioState.errorMessage,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.weight(1f)
-                        )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ErrorOutline,
+                                contentDescription = null,
+                                tint = GoldLight,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = audioState.errorMessage ?: "Playback failed. Please retry.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White
+                            )
+                        }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = { repository.resumeAudio() },
@@ -318,7 +368,7 @@ fun QuranAudioDetailBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // Seek Bar & Timers
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -340,18 +390,18 @@ fun QuranAudioDetailBottomSheet(
                 ) {
                     Text(
                         text = formatTime(audioState.currentPositionSeconds),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Emerald200
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = GoldLight
                     )
                     Text(
                         text = formatTime(audioState.totalDurationSeconds),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelMedium,
                         color = Emerald200
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Main Playback Controls Row
             Row(
@@ -370,7 +420,9 @@ fun QuranAudioDetailBottomSheet(
                         }
                         repository.setAudioRepeatMode(nextMode)
                     },
-                    modifier = Modifier.testTag("audio_repeat_mode_button")
+                    modifier = Modifier
+                        .size(48.dp)
+                        .testTag("audio_repeat_mode_button")
                 ) {
                     Icon(
                         imageVector = when (audioState.repeatMode) {
@@ -380,7 +432,8 @@ fun QuranAudioDetailBottomSheet(
                             AudioRepeatMode.REPEAT_RANGE -> Icons.Filled.Loop
                         },
                         contentDescription = "Repeat Mode",
-                        tint = if (audioState.repeatMode != AudioRepeatMode.OFF) GoldPrimary else Emerald300
+                        tint = if (audioState.repeatMode != AudioRepeatMode.OFF) GoldPrimary else Emerald300,
+                        modifier = Modifier.size(26.dp)
                     )
                 }
 
@@ -388,14 +441,14 @@ fun QuranAudioDetailBottomSheet(
                 IconButton(
                     onClick = { repository.previousAudioVerse() },
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(52.dp)
                         .testTag("audio_prev_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.SkipPrevious,
                         contentDescription = "Previous Verse",
                         tint = Color.White,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(34.dp)
                     )
                 }
 
@@ -428,75 +481,125 @@ fun QuranAudioDetailBottomSheet(
                 IconButton(
                     onClick = { repository.nextAudioVerse() },
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(52.dp)
                         .testTag("audio_next_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.SkipNext,
                         contentDescription = "Next Verse",
                         tint = Color.White,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(34.dp)
                     )
                 }
 
                 // Stop Audio
                 IconButton(
                     onClick = { repository.stopAudio() },
-                    modifier = Modifier.testTag("audio_stop_button")
+                    modifier = Modifier
+                        .size(48.dp)
+                        .testTag("audio_stop_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.Stop,
                         contentDescription = "Stop Audio",
-                        tint = Emerald300
+                        tint = Emerald300,
+                        modifier = Modifier.size(26.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Speed & Volume Row
-            Row(
+            // Speed Control Section (Responsive Grid of 5 chips)
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Emerald900.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(12.dp)
             ) {
-                // Playback Speed Chips
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Speed,
+                            contentDescription = null,
+                            tint = GoldPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Playback Speed",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White
+                        )
+                    }
                     Text(
-                        text = "Speed:",
+                        text = "${audioState.playbackSpeed}x ${if (audioState.playbackSpeed == 1.0f) "(Normal)" else ""}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Emerald200
+                        color = GoldLight
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
                         val isSelected = audioState.playbackSpeed == speed
                         Surface(
                             onClick = { repository.setAudioPlaybackSpeed(speed) },
                             shape = RoundedCornerShape(8.dp),
-                            color = if (isSelected) GoldPrimary else Color.Transparent,
-                            modifier = Modifier.padding(horizontal = 2.dp)
+                            color = if (isSelected) GoldPrimary else Emerald950,
+                            border = if (isSelected) null else CardDefaults.outlinedCardBorder(),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Text(
-                                text = "${speed}x",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = if (isSelected) Emerald950 else Color.White,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
-                            )
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.padding(vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = "${speed}x",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isSelected) Emerald950 else Color.White
+                                )
+                            }
                         }
                     }
                 }
+            }
 
-                // Auto Advance Toggle
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Auto-Next",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Emerald200
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Continuous Playback & Auto-Next Row
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = Emerald900.copy(alpha = 0.4f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Continuous Playback",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Automatically play next ayah when completed",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Emerald200
+                        )
+                    }
                     Switch(
                         checked = audioState.autoNextVerse,
                         onCheckedChange = { repository.toggleAutoNextVerse(it) },
@@ -545,183 +648,211 @@ fun QuranAudioDetailBottomSheet(
                 }
             }
 
-            // Volume Slider
-            Spacer(modifier = Modifier.height(14.dp))
+            // Volume Slider Row
+            Spacer(modifier = Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.VolumeMute,
-                    contentDescription = null,
-                    tint = Emerald300,
-                    modifier = Modifier.size(20.dp)
-                )
+                IconButton(
+                    onClick = { repository.setAudioVolume(0f) },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VolumeMute,
+                        contentDescription = "Mute Volume",
+                        tint = Emerald300,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
                 Slider(
                     value = audioState.volume,
                     onValueChange = { repository.setAudioVolume(it) },
                     valueRange = 0f..1f,
                     colors = SliderDefaults.colors(
-                        thumbColor = Emerald300,
-                        activeTrackColor = Emerald300,
+                        thumbColor = GoldPrimary,
+                        activeTrackColor = GoldPrimary,
                         inactiveTrackColor = Emerald900
                     ),
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = 10.dp)
+                        .padding(horizontal = 6.dp)
                         .testTag("audio_volume_slider")
                 )
-                Icon(
-                    imageVector = Icons.Default.VolumeUp,
-                    contentDescription = null,
-                    tint = Emerald300,
-                    modifier = Modifier.size(20.dp)
-                )
+                IconButton(
+                    onClick = { repository.setAudioVolume(1f) },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VolumeUp,
+                        contentDescription = "Max Volume",
+                        tint = Emerald300,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
 
-    // Comprehensive 10 Reciters Picker Dialog
+    // Comprehensive Reciters Picker Dialog
     if (showReciterPicker) {
-        val filteredReciters = remember(reciterSearchQuery, recitersList) {
-            val q = reciterSearchQuery.trim().lowercase()
-            val list = if (q.isBlank()) recitersList else recitersList.filter {
-                it.name.lowercase().contains(q) ||
-                it.arabicName.contains(reciterSearchQuery.trim()) ||
-                it.country.lowercase().contains(q)
-            }
-            list.sortedByDescending { it.isFavorite }
-        }
-
-        AlertDialog(
-            onDismissRequest = { showReciterPicker = false },
-            title = {
-                Column {
-                    Text(
-                        text = "Select Quran Reciter",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                    )
-                    Text(
-                        text = "10 verified master Qaris with high-fidelity Murattal audio",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+        RecitersSelectionDialog(
+            currentReciterName = audioState.reciterName,
+            repository = repository,
+            onSelectReciter = { name ->
+                repository.setAudioReciter(name)
+                showReciterPicker = false
             },
-            text = {
-                Column(
+            onDismiss = { showReciterPicker = false }
+        )
+    }
+}
+
+/**
+ * Reciters Selection Dialog with search and favorites.
+ */
+@Composable
+fun RecitersSelectionDialog(
+    currentReciterName: String,
+    repository: VoxoraRepository,
+    onSelectReciter: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val recitersList by repository.reciters.collectAsState()
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredReciters = remember(searchQuery, recitersList) {
+        val q = searchQuery.trim().lowercase()
+        val list = if (q.isBlank()) recitersList else recitersList.filter {
+            it.name.lowercase().contains(q) ||
+            it.arabicName.contains(searchQuery.trim()) ||
+            it.country.lowercase().contains(q)
+        }
+        list.sortedByDescending { it.isFavorite }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text(
+                    text = "Select Quran Reciter",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                Text(
+                    text = "Authentic Murattal recitations from verified master Qaris",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+            ) {
+                // Search bar
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 420.dp)
-                ) {
-                    // Search bar
-                    OutlinedTextField(
-                        value = reciterSearchQuery,
-                        onValueChange = { reciterSearchQuery = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 12.dp)
-                            .testTag("reciter_search_input"),
-                        placeholder = { Text("Search reciter or country...") },
-                        leadingIcon = {
-                            Icon(Icons.Default.Search, contentDescription = null, tint = Emerald700)
-                        },
-                        trailingIcon = {
-                            if (reciterSearchQuery.isNotBlank()) {
-                                IconButton(onClick = { reciterSearchQuery = "" }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear")
-                                }
+                        .padding(bottom = 12.dp)
+                        .testTag("reciter_search_input"),
+                    placeholder = { Text("Search reciter or country...") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = null, tint = Emerald700)
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear")
                             }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
 
-                    // Reciters list
-                    androidx.compose.foundation.lazy.LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f, fill = false)
-                    ) {
-                        items(filteredReciters.size) { idx ->
-                            val reciter = filteredReciters[idx]
-                            val isSelected = audioState.reciterName == reciter.name
-                            Surface(
-                                onClick = {
-                                    repository.setAudioReciter(reciter.name)
-                                    showReciterPicker = false
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) Emerald100 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                border = if (isSelected) CardDefaults.outlinedCardBorder() else null,
-                                modifier = Modifier.fillMaxWidth()
+                // Reciters list
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
+                    items(filteredReciters) { reciter ->
+                        val isSelected = currentReciterName == reciter.name
+                        Surface(
+                            onClick = { onSelectReciter(reciter.name) },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) Emerald100 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = if (isSelected) CardDefaults.outlinedCardBorder() else null,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    modifier = Modifier.weight(1f)
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f)
-                                    ) {
+                                    Text(
+                                        text = reciter.flagEmoji,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
                                         Text(
-                                            text = reciter.flagEmoji,
-                                            style = MaterialTheme.typography.titleMedium
+                                            text = reciter.name,
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                            ),
+                                            color = if (isSelected) Emerald900 else MaterialTheme.colorScheme.onSurface
                                         )
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Column {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(
-                                                    text = reciter.name,
-                                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                                    ),
-                                                    color = if (isSelected) Emerald900 else MaterialTheme.colorScheme.onSurface
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = "${reciter.arabicName} • ${reciter.style} (${reciter.bitRate})",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = if (isSelected) Emerald800 else MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "${reciter.arabicName} • ${reciter.style} (${reciter.bitRate})",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (isSelected) Emerald800 else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
+                                }
 
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        IconButton(
-                                            onClick = { repository.toggleFavoriteReciter(reciter.name) },
-                                            modifier = Modifier.size(36.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = if (reciter.isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                                                contentDescription = "Favorite",
-                                                tint = if (reciter.isFavorite) GoldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                        if (isSelected) {
-                                            Icon(
-                                                imageVector = Icons.Default.CheckCircle,
-                                                contentDescription = "Selected",
-                                                tint = Emerald700,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(
+                                        onClick = { repository.toggleFavoriteReciter(reciter.name) },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (reciter.isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                                            contentDescription = "Favorite",
+                                            tint = if (reciter.isFavorite) GoldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = "Selected",
+                                            tint = Emerald700,
+                                            modifier = Modifier.size(20.dp)
+                                        )
                                     }
                                 }
                             }
                         }
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showReciterPicker = false }) {
-                    Text("Done", color = Emerald700, fontWeight = FontWeight.Bold)
-                }
             }
-        )
-    }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Done", color = Emerald700, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }
 
 private fun formatTime(seconds: Float): String {

@@ -26,6 +26,8 @@ import com.example.R
 import com.example.data.model.QuranClass
 import com.example.data.model.Teacher
 import com.example.data.repository.VoxoraRepository
+import com.example.ui.components.QuranAudioDetailBottomSheet
+import com.example.ui.components.QuranMiniAudioPlayer
 import com.example.ui.screens.*
 import com.example.ui.theme.Emerald700
 import com.example.ui.theme.Emerald900
@@ -59,6 +61,10 @@ fun VoxoraApp(
     var currentDestination by remember { mutableStateOf(MainDestination.HOME) }
     var currentSubScreen by remember { mutableStateOf(SubScreen.NONE) }
     var selectedTeacherForDiscovery by remember { mutableStateOf<Teacher?>(null) }
+
+    val audioState by repository.audioState.collectAsState()
+    val selectedSurah by repository.selectedSurah.collectAsState()
+    var showAudioDetailSheet by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -96,45 +102,63 @@ fun VoxoraApp(
             )
         },
         bottomBar = {
-            // Show bottom bar on standard mobile layout when not in live class
-            if (!isWideScreen && currentSubScreen != SubScreen.LIVE_CLASS) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 6.dp,
-                    modifier = Modifier.testTag("bottom_navigation_bar")
-                ) {
-                    MainDestination.values().forEach { destination ->
-                        val isSelected = currentDestination == destination && currentSubScreen == SubScreen.NONE
-                        NavigationBarItem(
-                            selected = isSelected,
-                            onClick = {
-                                currentSubScreen = SubScreen.NONE
-                                currentDestination = destination
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = if (isSelected) destination.filledIcon else destination.outlinedIcon,
-                                    contentDescription = destination.title,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = destination.title,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Emerald700,
-                                selectedTextColor = Emerald700,
-                                indicatorColor = Emerald700.copy(alpha = 0.12f),
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            modifier = Modifier.testTag(destination.testTag)
+            if (currentSubScreen != SubScreen.LIVE_CLASS) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Global persistent mini audio player
+                    val isAudioActive = audioState.isPlaying || audioState.isLoading || audioState.currentPositionSeconds > 0f
+                    if (isAudioActive) {
+                        QuranMiniAudioPlayer(
+                            audioState = audioState,
+                            surahName = selectedSurah.nameEnglish,
+                            onExpandControls = { showAudioDetailSheet = true },
+                            onTogglePlay = { repository.toggleAudioPlayback() },
+                            onNextVerse = { repository.nextAudioVerse() },
+                            onPreviousVerse = { repository.previousAudioVerse() },
+                            onClose = { repository.stopAudio() }
                         )
+                    }
+
+                    // Bottom Navigation Bar on standard mobile layout
+                    if (!isWideScreen) {
+                        NavigationBar(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 6.dp,
+                            modifier = Modifier.testTag("bottom_navigation_bar")
+                        ) {
+                            MainDestination.values().forEach { destination ->
+                                val isSelected = currentDestination == destination && currentSubScreen == SubScreen.NONE
+                                NavigationBarItem(
+                                    selected = isSelected,
+                                    onClick = {
+                                        currentSubScreen = SubScreen.NONE
+                                        currentDestination = destination
+                                    },
+                                    icon = {
+                                        Icon(
+                                            imageVector = if (isSelected) destination.filledIcon else destination.outlinedIcon,
+                                            contentDescription = destination.title,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    },
+                                    label = {
+                                        Text(
+                                            text = destination.title,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        )
+                                    },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = Emerald700,
+                                        selectedTextColor = Emerald700,
+                                        indicatorColor = Emerald700.copy(alpha = 0.12f),
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    modifier = Modifier.testTag(destination.testTag)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -290,5 +314,15 @@ fun VoxoraApp(
                 }
             }
         }
+    }
+
+    // Global Quran Audio Detail Bottom Sheet
+    if (showAudioDetailSheet) {
+        QuranAudioDetailBottomSheet(
+            audioState = audioState,
+            surahName = selectedSurah.nameEnglish,
+            repository = repository,
+            onDismiss = { showAudioDetailSheet = false }
+        )
     }
 }
