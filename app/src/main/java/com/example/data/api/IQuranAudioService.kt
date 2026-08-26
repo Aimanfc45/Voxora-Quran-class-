@@ -20,6 +20,8 @@ interface IQuranAudioService {
     fun setPlaybackSpeed(speed: Float)
     fun setVolume(volume: Float)
     fun setRepeatMode(mode: AudioRepeatMode)
+    fun setRepeatCount(times: Int)
+    fun setRepeatRange(start: Int, end: Int)
     fun toggleAutoNext(autoNext: Boolean)
     fun setReciter(reciterName: String)
 }

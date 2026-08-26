@@ -16,6 +16,9 @@ class VoxoraRepository(
     // ----------------------------------------------------
     // User & Progress State
     // ----------------------------------------------------
+    private val _authMode = MutableStateFlow(AuthMode.AUTHENTICATED)
+    val authMode: StateFlow<AuthMode> = _authMode.asStateFlow()
+
     private val _userProfile = MutableStateFlow(MockUserData.currentUser)
     val userProfile: StateFlow<UserProfile> = _userProfile.asStateFlow()
 
@@ -24,6 +27,32 @@ class VoxoraRepository(
 
     private val _achievements = MutableStateFlow(MockUserData.achievements)
     val achievements: StateFlow<List<Achievement>> = _achievements.asStateFlow()
+
+    // ----------------------------------------------------
+    // Reciters & Tajwid Catalog State
+    // ----------------------------------------------------
+    private val _reciters = MutableStateFlow(MockQuranData.reciterList)
+    val reciters: StateFlow<List<ReciterInfo>> = _reciters.asStateFlow()
+
+    private val _tajwidRules = MutableStateFlow(MockQuranData.tajwidRulesList)
+    val tajwidRules: StateFlow<List<TajwidRule>> = _tajwidRules.asStateFlow()
+
+    private val _selectedTajwidFilter = MutableStateFlow<String?>(null)
+    val selectedTajwidFilter: StateFlow<String?> = _selectedTajwidFilter.asStateFlow()
+
+    // ----------------------------------------------------
+    // Search & History State
+    // ----------------------------------------------------
+    private val _searchResults = MutableStateFlow<List<QuranSearchResult>>(emptyList())
+    val searchResults: StateFlow<List<QuranSearchResult>> = _searchResults.asStateFlow()
+
+    private val _isSearching = MutableStateFlow(false)
+    val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+
+    private val _recentSearches = MutableStateFlow(
+        listOf("Al-Baqarah", "Ayat al-Kursi", "Mad Asli", "Surah Al-Fatihah", "Qalqalah", "Bismillah")
+    )
+    val recentSearches: StateFlow<List<String>> = _recentSearches.asStateFlow()
 
     // ----------------------------------------------------
     // Notifications State
@@ -56,7 +85,30 @@ class VoxoraRepository(
     private val _bookmarks = MutableStateFlow(MockUserData.initialBookmarks)
     val bookmarks: StateFlow<List<QuranBookmark>> = _bookmarks.asStateFlow()
 
-    private val _verseNotes = MutableStateFlow<List<VerseNote>>(emptyList())
+    private val _verseNotes = MutableStateFlow<List<VerseNote>>(
+        listOf(
+            VerseNote(
+                id = "vn_1",
+                surahNumber = 1,
+                surahName = "Al-Fatihah",
+                verseNumber = 7,
+                snippetArabic = "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ...",
+                noteText = "Pay special attention to the 6-count Mad Lazim Kalimi on 'Ad-Dallin'.",
+                timestamp = System.currentTimeMillis() - 86400000L,
+                isPrivate = true
+            ),
+            VerseNote(
+                id = "vn_2",
+                surahNumber = 2,
+                surahName = "Al-Baqarah",
+                verseNumber = 255,
+                snippetArabic = "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ...",
+                noteText = "Reflect deeply on Allah's eternal vigilance and supreme Sovereignty.",
+                timestamp = System.currentTimeMillis() - 43200000L,
+                isPrivate = true
+            )
+        )
+    )
     val verseNotes: StateFlow<List<VerseNote>> = _verseNotes.asStateFlow()
 
     private val _lastReadPosition = MutableStateFlow("Surah Al-Baqarah (2:2)")
@@ -321,6 +373,14 @@ class VoxoraRepository(
         audioEngine.setRepeatMode(mode)
     }
 
+    fun setAudioRepeatCount(times: Int) {
+        audioEngine.setRepeatCount(times)
+    }
+
+    fun setAudioRepeatRange(startVerse: Int, endVerse: Int) {
+        audioEngine.setRepeatRange(startVerse, endVerse)
+    }
+
     fun toggleAutoNextVerse(enabled: Boolean) {
         audioEngine.toggleAutoNext(enabled)
     }
@@ -328,6 +388,23 @@ class VoxoraRepository(
     fun setAudioReciter(reciter: String) {
         audioEngine.setReciter(reciter)
         _quranSettings.update { it.copy(reciterName = reciter, selectedReciter = reciter) }
+    }
+
+    fun toggleFavoriteReciter(reciterName: String) {
+        _quranSettings.update { settings ->
+            val favs = settings.favoriteReciters.toMutableSet()
+            if (favs.contains(reciterName)) {
+                favs.remove(reciterName)
+            } else {
+                favs.add(reciterName)
+            }
+            settings.copy(favoriteReciters = favs)
+        }
+        _reciters.update { list ->
+            list.map {
+                if (it.name == reciterName) it.copy(isFavorite = !it.isFavorite) else it
+            }
+        }
     }
 
     fun nextAudioVerse() {
@@ -339,7 +416,130 @@ class VoxoraRepository(
     }
 
     // ====================================================
-    // BOOKMARKS & NOTES
+    // QURAN SEARCH & HISTORY
+    // ====================================================
+
+    fun searchQuran(query: String): List<QuranSearchResult> {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) {
+            _searchResults.value = emptyList()
+            _isSearching.value = false
+            return emptyList()
+        }
+
+        _isSearching.value = true
+        val results = mutableListOf<QuranSearchResult>()
+
+        // 1. Check for Surah:Ayah pattern e.g. "2:255" or "1:1"
+        val colonMatch = Regex("""^(\d{1,3}):(\d{1,3})$""").find(trimmed)
+        if (colonMatch != null) {
+            val sNum = colonMatch.groupValues[1].toIntOrNull()
+            val vNum = colonMatch.groupValues[2].toIntOrNull()
+            if (sNum != null && vNum != null) {
+                val surah = _surahs.value.find { it.number == sNum }
+                if (surah != null) {
+                    val verse = surah.verses.find { it.verseNumber == vNum }
+                    if (verse != null) {
+                        results.add(
+                            QuranSearchResult(
+                                surahNumber = surah.number,
+                                surahName = surah.nameEnglish,
+                                verseNumber = verse.verseNumber,
+                                textArabic = verse.textArabic,
+                                textEnglish = verse.translationEnglish,
+                                textMalay = verse.translationMalay,
+                                matchType = "Surah:Ayah Match"
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. Search across Surahs & Verses
+        val lower = trimmed.lowercase()
+        for (surah in _surahs.value) {
+            // Surah name match
+            if (surah.nameEnglish.lowercase().contains(lower) ||
+                surah.nameArabic.contains(trimmed) ||
+                surah.nameTranslation.lowercase().contains(lower) ||
+                surah.number.toString() == trimmed
+            ) {
+                val firstVerse = surah.verses.firstOrNull()
+                if (firstVerse != null && results.none { it.surahNumber == surah.number && it.verseNumber == firstVerse.verseNumber }) {
+                    results.add(
+                        QuranSearchResult(
+                            surahNumber = surah.number,
+                            surahName = surah.nameEnglish,
+                            verseNumber = firstVerse.verseNumber,
+                            textArabic = firstVerse.textArabic,
+                            textEnglish = firstVerse.translationEnglish,
+                            textMalay = firstVerse.translationMalay,
+                            matchType = "Surah Match"
+                        )
+                    )
+                }
+            }
+
+            // Verse text match (Arabic, English, Malay, Transliteration)
+            for (verse in surah.verses) {
+                val arabicMatch = verse.textArabic.contains(trimmed)
+                val engMatch = verse.translationEnglish.lowercase().contains(lower)
+                val malayMatch = verse.translationMalay.lowercase().contains(lower)
+                val translitMatch = verse.transliteration.lowercase().contains(lower)
+
+                if (arabicMatch || engMatch || malayMatch || translitMatch) {
+                    if (results.none { it.surahNumber == surah.number && it.verseNumber == verse.verseNumber }) {
+                        val matchType = when {
+                            arabicMatch -> "Arabic Text"
+                            engMatch -> "English Translation"
+                            malayMatch -> "Malay Translation"
+                            else -> "Transliteration"
+                        }
+                        results.add(
+                            QuranSearchResult(
+                                surahNumber = surah.number,
+                                surahName = surah.nameEnglish,
+                                verseNumber = verse.verseNumber,
+                                textArabic = verse.textArabic,
+                                textEnglish = verse.translationEnglish,
+                                textMalay = verse.translationMalay,
+                                matchType = matchType
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        _searchResults.value = results
+        _isSearching.value = false
+        return results
+    }
+
+    fun clearSearchResults() {
+        _searchResults.value = emptyList()
+        _isSearching.value = false
+    }
+
+    fun addRecentSearch(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return
+        _recentSearches.update { list ->
+            listOf(trimmed) + list.filterNot { it.equals(trimmed, ignoreCase = true) }.take(9)
+        }
+    }
+
+    fun removeRecentSearch(query: String) {
+        _recentSearches.update { list -> list.filterNot { it == query } }
+    }
+
+    fun clearRecentSearches() {
+        _recentSearches.value = emptyList()
+    }
+
+    // ====================================================
+    // BOOKMARKS & PRIVATE NOTES CRUD
     // ====================================================
 
     fun toggleBookmark(surah: Surah, verse: Verse, customNote: String = ""): Boolean {
@@ -361,19 +561,55 @@ class VoxoraRepository(
         }
     }
 
+    fun removeBookmark(bookmarkId: String) {
+        _bookmarks.update { it.filterNot { b -> b.id == bookmarkId } }
+    }
+
     fun isVerseBookmarked(surahNumber: Int, verseNumber: Int): Boolean {
         return _bookmarks.value.any { it.surahNumber == surahNumber && it.verseNumber == verseNumber }
     }
 
     fun addVerseNote(surahNumber: Int, verseNumber: Int, noteText: String) {
         if (noteText.isBlank()) return
+        val targetSurah = _surahs.value.find { it.number == surahNumber }
+        val targetVerse = targetSurah?.verses?.find { it.verseNumber == verseNumber }
+        val surahName = targetSurah?.nameEnglish ?: "Surah $surahNumber"
+        val snippet = targetVerse?.textArabic?.take(40)?.let { "$it..." } ?: ""
         val newNote = VerseNote(
             id = "vn_${System.currentTimeMillis()}",
             surahNumber = surahNumber,
+            surahName = surahName,
             verseNumber = verseNumber,
-            noteText = noteText.trim()
+            snippetArabic = snippet,
+            noteText = noteText.trim(),
+            isPrivate = true
         )
         _verseNotes.update { listOf(newNote) + it }
+    }
+
+    fun addVerseNote(surah: Surah, verse: Verse, noteText: String) {
+        if (noteText.isBlank()) return
+        val newNote = VerseNote(
+            id = "vn_${System.currentTimeMillis()}",
+            surahNumber = surah.number,
+            surahName = surah.nameEnglish,
+            verseNumber = verse.verseNumber,
+            snippetArabic = verse.textArabic.take(40) + "...",
+            noteText = noteText.trim(),
+            isPrivate = true
+        )
+        _verseNotes.update { listOf(newNote) + it }
+    }
+
+    fun editVerseNote(noteId: String, newText: String) {
+        if (newText.isBlank()) return
+        _verseNotes.update { list ->
+            list.map { if (it.id == noteId) it.copy(noteText = newText.trim(), timestamp = System.currentTimeMillis()) else it }
+        }
+    }
+
+    fun deleteVerseNote(noteId: String) {
+        _verseNotes.update { it.filterNot { n -> n.id == noteId } }
     }
 
     fun getNotesForVerse(surahNumber: Int, verseNumber: Int): List<VerseNote> {
@@ -381,8 +617,62 @@ class VoxoraRepository(
     }
 
     // ====================================================
-    // DISPLAY & FONT SETTINGS
+    // TAJWID LEARNING MODE
     // ====================================================
+
+    fun filterByTajwidRule(category: String?) {
+        _selectedTajwidFilter.value = category
+    }
+
+    // ====================================================
+    // DISPLAY, READING MODE & FONT SETTINGS
+    // ====================================================
+
+    fun setReadingDisplayMode(mode: ReadingDisplayMode) {
+        _quranSettings.update {
+            when (mode) {
+                ReadingDisplayMode.ARABIC_ONLY -> it.copy(
+                    readingMode = mode,
+                    showTranslation = false,
+                    showTransliteration = false,
+                    showEnglishTranslation = false,
+                    showMalayTranslation = false
+                )
+                ReadingDisplayMode.ARABIC_EN -> it.copy(
+                    readingMode = mode,
+                    showTranslation = true,
+                    showTransliteration = false,
+                    showEnglishTranslation = true,
+                    showMalayTranslation = false
+                )
+                ReadingDisplayMode.ARABIC_BM -> it.copy(
+                    readingMode = mode,
+                    showTranslation = true,
+                    showTransliteration = false,
+                    showEnglishTranslation = false,
+                    showMalayTranslation = true
+                )
+                ReadingDisplayMode.ARABIC_TRANSLITERATION -> it.copy(
+                    readingMode = mode,
+                    showTranslation = false,
+                    showTransliteration = true,
+                    showEnglishTranslation = false,
+                    showMalayTranslation = false
+                )
+                ReadingDisplayMode.MULTI_TRANSLATION -> it.copy(
+                    readingMode = mode,
+                    showTranslation = true,
+                    showTransliteration = true,
+                    showEnglishTranslation = true,
+                    showMalayTranslation = true
+                )
+            }
+        }
+    }
+
+    fun setQuranLineSpacing(spacing: QuranLineSpacing) {
+        _quranSettings.update { it.copy(lineSpacing = spacing) }
+    }
 
     fun updateQuranFontSize(sizeSp: Float) {
         _quranSettings.update { it.copy(arabicFontSizeSp = sizeSp) }
@@ -396,8 +686,84 @@ class VoxoraRepository(
         _quranSettings.update { it.copy(showTransliteration = show) }
     }
 
+    fun toggleMalayTranslation(show: Boolean) {
+        _quranSettings.update { it.copy(showMalayTranslation = show) }
+    }
+
+    fun toggleWordByWord(show: Boolean) {
+        _quranSettings.update { it.copy(showWordByWord = show) }
+    }
+
+    fun toggleTajwidColors(show: Boolean) {
+        _quranSettings.update { it.copy(showTajwidColors = show) }
+    }
+
     fun setTranslationLanguage(lang: String) {
         _quranSettings.update { it.copy(translationLanguage = lang) }
+    }
+
+    // ====================================================
+    // AUTHENTICATION & USER PROFILE ACTIONS
+    // ====================================================
+
+    fun signIn(email: String, name: String = "Ahmed Al-Farsi") {
+        _authMode.value = AuthMode.AUTHENTICATED
+        _userProfile.update {
+            it.copy(
+                email = email.ifBlank { "ahmed.farsi@voxora.app" },
+                name = name.ifBlank { "Ahmed Al-Farsi" },
+                isGuest = false
+            )
+        }
+    }
+
+    fun signUp(name: String, email: String, country: String = "Malaysia") {
+        _authMode.value = AuthMode.AUTHENTICATED
+        _userProfile.update {
+            it.copy(
+                name = name.ifBlank { "Voxora Reciter" },
+                email = email.ifBlank { "reciter@voxora.app" },
+                country = country,
+                isGuest = false
+            )
+        }
+    }
+
+    fun continueAsGuest() {
+        _authMode.value = AuthMode.GUEST
+        _userProfile.update {
+            it.copy(
+                name = "Guest Reciter",
+                username = "@guest_reciter",
+                email = "guest@voxora.local",
+                isGuest = true
+            )
+        }
+    }
+
+    fun updateDailyGoal(minutes: Int, verses: Int = 10) {
+        _userProfile.update { it.copy(dailyGoalMinutes = minutes, dailyGoalVerses = verses) }
+    }
+
+    fun signInUser(name: String, email: String) {
+        signIn(email, name)
+    }
+
+    fun switchToGuestMode() {
+        continueAsGuest()
+    }
+
+    fun setLineSpacing(mode: QuranLineSpacing) {
+        setQuranLineSpacing(mode)
+    }
+
+    fun updateSelectedReciter(reciter: String, folderId: String? = null) {
+        _quranSettings.update { it.copy(selectedReciter = reciter, reciterName = reciter) }
+        audioEngine.setReciter(reciter)
+    }
+
+    fun updateAvatarEmoji(emoji: String) {
+        _userProfile.update { it.copy(avatarEmoji = emoji) }
     }
 
     // ====================================================
@@ -716,10 +1082,6 @@ class VoxoraRepository(
 
     fun toggleEnglishTranslation(show: Boolean) {
         _quranSettings.update { it.copy(showTranslation = show, showEnglishTranslation = show) }
-    }
-
-    fun toggleWordByWord(show: Boolean) {
-        _quranSettings.update { it.copy(showWordByWord = show) }
     }
 
     fun updateSelectedReciter(reciter: String) {

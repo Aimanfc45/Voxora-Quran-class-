@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -43,18 +44,21 @@ fun ProfileSettingsScreen(
 
     var showAboutDialog by remember { mutableStateOf(false) }
     var showReciterDialog by remember { mutableStateOf(false) }
+    var showAuthDialog by remember { mutableStateOf(false) }
+    var showDailyGoalDialog by remember { mutableStateOf(false) }
 
     // Settings toggles
     var dailyClassReminder by remember { mutableStateOf(true) }
     var streakNotification by remember { mutableStateOf(true) }
     var autoMicMuteOnJoin by remember { mutableStateOf(true) }
+    var dailyGoalMinutes by remember { mutableStateOf(user.dailyGoalMinutes) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             VoxoraHeaderBar(
                 title = "Profile & Settings",
-                subtitle = "Manage your preferences and learning profile"
+                subtitle = "Manage your account, daily goals, and audio preferences"
             )
         }
     ) { paddingValues ->
@@ -65,7 +69,7 @@ fun ProfileSettingsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 1. Profile Header Card
+            // 1. Profile Header Card & Auth Status
             item {
                 Card(
                     modifier = Modifier
@@ -102,25 +106,40 @@ fun ProfileSettingsScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = user.email,
+                            text = if (user.isGuest) "Guest Mode (Local On-Device Profile)" else user.email,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Emerald100
-                        ) {
-                            Text(
-                                text = "🏆 ${user.learningLevel} • ${user.country}",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = Emerald900
-                                ),
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                            )
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Emerald100
+                            ) {
+                                Text(
+                                    text = "🏆 ${user.learningLevel}",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = Emerald900
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = GoldContainer
+                            ) {
+                                Text(
+                                    text = "📍 ${user.country}",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = GoldOnContainer
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
                         }
 
                         if (user.bio.isNotBlank()) {
@@ -136,29 +155,102 @@ fun ProfileSettingsScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        OutlinedButton(
-                            onClick = {
-                                editName = user.name
-                                editBio = user.bio
-                                editCountry = user.country
-                                editLevel = user.learningLevel
-                                showEditProfileDialog = true
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(44.dp)
-                                .testTag("edit_profile_btn")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Edit Profile Info")
+                            OutlinedButton(
+                                onClick = {
+                                    editName = user.name
+                                    editBio = user.bio
+                                    editCountry = user.country
+                                    editLevel = user.learningLevel
+                                    showEditProfileDialog = true
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .testTag("edit_profile_btn")
+                            ) {
+                                Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Edit Profile")
+                            }
+
+                            Button(
+                                onClick = { showAuthDialog = true },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (user.isGuest) Emerald700 else MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = if (user.isGuest) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (user.isGuest) Icons.Default.Login else Icons.Default.AccountCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (user.isGuest) "Sign In" else "Account")
+                            }
                         }
                     }
                 }
             }
 
-            // 2. Quran Reading Preferences
+            // 2. Daily Learning Goals Card
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = CardDefaults.outlinedCardBorder()
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Daily Quran Goal",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                            TextButton(onClick = { showDailyGoalDialog = true }) {
+                                Text("Adjust", color = Emerald700)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Target: ${user.dailyGoalMinutes} minutes daily recitation",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = { (user.streakCount * 0.2f).coerceIn(0.1f, 1.0f) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            color = GoldPrimary,
+                            trackColor = Emerald100
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "🔥 ${user.streakCount} Day Streak Active • Total Recited: ${user.totalVersesRead} Verses",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Emerald800
+                        )
+                    }
+                }
+            }
+
+            // 3. Quran Reading & Reciter Preferences
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -182,7 +274,7 @@ fun ProfileSettingsScreen(
                         Slider(
                             value = quranSettings.arabicFontSizeSp,
                             onValueChange = { repository.updateArabicFontSize(it) },
-                            valueRange = 20f..38f,
+                            valueRange = 20f..40f,
                             colors = SliderDefaults.colors(thumbColor = Emerald700, activeTrackColor = Emerald700)
                         )
 
@@ -225,7 +317,7 @@ fun ProfileSettingsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text("Default Qari / Reciter", style = MaterialTheme.typography.bodyMedium)
+                                Text("Default Qari / Reciter", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
                                 Text(quranSettings.selectedReciter, style = MaterialTheme.typography.bodySmall, color = Emerald700)
                             }
                             Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -234,7 +326,7 @@ fun ProfileSettingsScreen(
                 }
             }
 
-            // 3. Live Class & Notifications Settings
+            // 4. Live Class & Notifications Settings
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -310,7 +402,37 @@ fun ProfileSettingsScreen(
                 }
             }
 
-            // 4. App Info & Version
+            // 5. Storage & Cache Management
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = CardDefaults.outlinedCardBorder()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Audio Offline Cache", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
+                            Text("14.2 MB cached audio streams", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        TextButton(
+                            onClick = {
+                                onShowSnackbar("Audio cache cleared successfully (14.2 MB freed)")
+                            }
+                        ) {
+                            Text("Clear Cache", color = Color(0xFFDC2626))
+                        }
+                    }
+                }
+            }
+
+            // 6. App Info & Version
             item {
                 Card(
                     modifier = Modifier
@@ -329,7 +451,7 @@ fun ProfileSettingsScreen(
                     ) {
                         Column {
                             Text("About Voxora Quran", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
-                            Text("Version 0.1.0 (Phase 1) • Learn. Recite. Grow.", style = MaterialTheme.typography.labelSmall, color = Emerald700)
+                            Text("Version 1.0 (Phase 1 Update 1) • Learn. Recite. Grow.", style = MaterialTheme.typography.labelSmall, color = Emerald700)
                         }
                         Icon(imageVector = Icons.Default.Info, contentDescription = null, tint = Emerald700)
                     }
@@ -367,6 +489,13 @@ fun ProfileSettingsScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    OutlinedTextField(
+                        value = editLevel,
+                        onValueChange = { editLevel = it },
+                        label = { Text("Learning Level (e.g. Beginner, Intermediate, Hafiz)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             },
             confirmButton = {
@@ -389,32 +518,198 @@ fun ProfileSettingsScreen(
         )
     }
 
-    // Reciter Dialog
+    // Daily Recitation Goal Dialog
+    if (showDailyGoalDialog) {
+        var tempGoal by remember { mutableStateOf(user.dailyGoalMinutes.toFloat()) }
+        AlertDialog(
+            onDismissRequest = { showDailyGoalDialog = false },
+            title = { Text("Set Daily Quran Goal") },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "${tempGoal.toInt()} Minutes / Day",
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Emerald700
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Slider(
+                        value = tempGoal,
+                        onValueChange = { tempGoal = it },
+                        valueRange = 5f..60f,
+                        steps = 10,
+                        colors = SliderDefaults.colors(thumbColor = Emerald700, activeTrackColor = Emerald700)
+                    )
+                    Text(
+                        text = "Build a consistent habit of daily tilawah and reflection.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        repository.updateDailyGoal(minutes = tempGoal.toInt(), verses = 10)
+                        showDailyGoalDialog = false
+                        onShowSnackbar("Daily goal updated to ${tempGoal.toInt()} minutes!")
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
+                ) {
+                    Text("Set Goal")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDailyGoalDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Sign In / Guest Mode Dialog
+    if (showAuthDialog) {
+        var emailInput by remember { mutableStateOf("") }
+        var nameInput by remember { mutableStateOf("") }
+
+        AlertDialog(
+            onDismissRequest = { showAuthDialog = false },
+            title = {
+                Text(
+                    text = if (user.isGuest) "Sign In to Voxora Account" else "Account Management",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (user.isGuest) {
+                        Text(
+                            text = "Sign in to sync your bookmarks, notes, live class attendance, and Tajwid mastery across devices.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = nameInput,
+                            onValueChange = { nameInput = it },
+                            label = { Text("Full Name") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = emailInput,
+                            onValueChange = { emailInput = it },
+                            label = { Text("Email Address") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        Text("Signed in as: ${user.name} (${user.email})")
+                        Text(
+                            text = "You are currently enjoying full account synchronization.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Emerald700
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (user.isGuest) {
+                    Button(
+                        onClick = {
+                            val finalName = if (nameInput.isNotBlank()) nameInput else "Student"
+                            val finalEmail = if (emailInput.isNotBlank()) emailInput else "student@voxora.org"
+                            repository.signInUser(finalName, finalEmail)
+                            showAuthDialog = false
+                            onShowSnackbar("Welcome back, $finalName! Signed in successfully.")
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
+                    ) {
+                        Text("Sign In")
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            repository.switchToGuestMode()
+                            showAuthDialog = false
+                            onShowSnackbar("Switched to Guest Mode.")
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Switch to Guest Mode")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAuthDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // Reciter Dialog with 10 Reciters
     if (showReciterDialog) {
-        val reciters = listOf("Mishary Rashid Alafasy", "Abdul Basit Abdul Samad", "Mahmoud Khalil Al-Hussary", "Saad Al-Ghamdi")
+        val reciters = listOf(
+            "Mishary Rashid Alafasy" to "Alafasy_128kbps",
+            "Abdul Basit Abdul Samad" to "Abdul_Basit_Murattal_192kbps",
+            "Mahmoud Khalil Al-Hussary" to "Husary_128kbps",
+            "Saad Al-Ghamdi" to "Ghamadi_40kbps",
+            "Abu Bakr Ash-Shatri" to "Abu_Bakr_Ash-Shaatree_128kbps",
+            "Abdur-Rahman as-Sudais" to "Abdurrahmaan_As-Sudais_192kbps",
+            "Saud ash-Shuraim" to "Saood_ash-Shuraym_128kbps",
+            "Ali Jaber" to "Ali_Jaber_64kbps",
+            "Yasser Ad-Dussary" to "Yasser_Ad-Dussary_128kbps",
+            "Maher Al-Muaiqly" to "Maher_AlMuaiqly_64kbps"
+        )
+
         AlertDialog(
             onDismissRequest = { showReciterDialog = false },
-            title = { Text("Select Default Qari") },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.RecordVoiceOver, contentDescription = null, tint = Emerald700)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Select Default Reciter (Qari)")
+                }
+            },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    reciters.forEach { r ->
-                        val isSelected = quranSettings.selectedReciter == r
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(reciters) { (rName, rId) ->
+                        val isSelected = quranSettings.selectedReciter == rName
                         Surface(
                             onClick = {
-                                repository.updateSelectedReciter(r)
+                                repository.updateSelectedReciter(rName, rId)
                                 showReciterDialog = false
-                                onShowSnackbar("Reciter changed to $r")
+                                onShowSnackbar("Reciter set to $rName")
                             },
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isSelected) Emerald100 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) Emerald700 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(
-                                text = r + if (isSelected) "  ✓" else "",
-                                modifier = Modifier.padding(12.dp),
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSelected) Emerald900 else MaterialTheme.colorScheme.onSurface
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = rName,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 13.sp
+                                )
+                                if (isSelected) {
+                                    Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                            }
                         }
                     }
                 }
@@ -431,21 +726,28 @@ fun ProfileSettingsScreen(
     if (showAboutDialog) {
         AlertDialog(
             onDismissRequest = { showAboutDialog = false },
-            title = { Text("Voxora Quran") },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Voxora Quran",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = Emerald800
+                    )
+                }
+            },
             text = {
-                Column {
-                    Text("Version 0.1.0 (Phase 1 Major Update)", fontWeight = FontWeight.Bold, color = Emerald800)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Version 1.0 (Phase 1 Update 1)", fontWeight = FontWeight.Bold, color = Emerald700)
+                    Text("Tagline: Learn. Recite. Grow.", fontWeight = FontWeight.SemiBold, color = GoldDark)
+                    Divider(color = Emerald100)
+                    Text("Voxora Quran is an authentic, offline-first Quran learning platform featuring verified Uthmani text, 10 world-renowned Qaris, word-by-word vocabulary breakdowns, interactive Tajwid color rules, private reflection notes, and interactive live classes.")
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("Learn. Recite. Grow.", fontWeight = FontWeight.SemiBold, color = GoldDark)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Voxora Quran is a modern Quran recitation & live learning platform empowering students worldwide to master Tajwid, Hafazan, and Qiraat with certified teachers.")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Designed with dark emerald aesthetics and gold accents.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Audio powered by verified High Quality Quran Audio streams (EveryAyah repository).", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
             confirmButton = {
                 Button(onClick = { showAboutDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = Emerald700)) {
-                    Text("JazakAllahu Khair")
+                    Text("Alhamdulillah")
                 }
             }
         )

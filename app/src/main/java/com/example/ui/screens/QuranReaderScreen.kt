@@ -5,10 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -60,6 +62,9 @@ fun QuranReaderScreen(
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showAudioDetailSheet by remember { mutableStateOf(false) }
     var showJumpToVerseDialog by remember { mutableStateOf(false) }
+    var showSearchDialog by remember { mutableStateOf(false) }
+    var showTajwidGuideDialog by remember { mutableStateOf(false) }
+    var showNotesListDialog by remember { mutableStateOf(false) }
     var showNoteDialogForVerse by remember { mutableStateOf<Verse?>(null) }
     var newNoteText by remember { mutableStateOf("") }
 
@@ -122,7 +127,44 @@ fun QuranReaderScreen(
                     }
                 },
                 actions = {
+                    // Quran Search Button
+                    IconButton(
+                        onClick = { showSearchDialog = true },
+                        modifier = Modifier.testTag("quran_search_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search Quran",
+                            tint = Emerald700
+                        )
+                    }
+
                     if (viewMode == QuranViewMode.SURAH_READING) {
+                        // Tajwid Rules Guide Button
+                        IconButton(
+                            onClick = { showTajwidGuideDialog = true },
+                            modifier = Modifier.testTag("quran_tajwid_guide_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.School,
+                                contentDescription = "Tajwid Rules",
+                                tint = Emerald700
+                            )
+                        }
+
+                        // Notes Button
+                        IconButton(
+                            onClick = { showNotesListDialog = true },
+                            modifier = Modifier.testTag("quran_notes_list_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.EditNote,
+                                contentDescription = "Ayah Notes",
+                                tint = Emerald700
+                            )
+                        }
+
+                        // Jump to Verse Button
                         IconButton(
                             onClick = { showJumpToVerseDialog = true },
                             modifier = Modifier.testTag("quran_jump_verse_button")
@@ -133,6 +175,8 @@ fun QuranReaderScreen(
                                 tint = Emerald700
                             )
                         }
+
+                        // Surah Directory Button
                         IconButton(
                             onClick = { viewMode = QuranViewMode.SURAH_CATALOG },
                             modifier = Modifier.testTag("quran_surah_list_button")
@@ -143,6 +187,8 @@ fun QuranReaderScreen(
                                 tint = Emerald700
                             )
                         }
+
+                        // Display Settings Button
                         IconButton(
                             onClick = { showSettingsDialog = true },
                             modifier = Modifier.testTag("quran_settings_button")
@@ -263,6 +309,42 @@ fun QuranReaderScreen(
         )
     }
 
+    // Quran Full Search Dialog
+    if (showSearchDialog) {
+        QuranSearchDialog(
+            repository = repository,
+            onResultClick = { searchResult ->
+                repository.selectSurah(searchResult.surahNumber)
+                repository.jumpToVerse(searchResult.verseNumber)
+                viewMode = QuranViewMode.SURAH_READING
+                showSearchDialog = false
+            },
+            onDismiss = { showSearchDialog = false }
+        )
+    }
+
+    // Tajwid Rules Guide Dialog
+    if (showTajwidGuideDialog) {
+        TajwidGuideDialog(
+            repository = repository,
+            onDismiss = { showTajwidGuideDialog = false }
+        )
+    }
+
+    // Private Notes List Dialog
+    if (showNotesListDialog) {
+        QuranNotesListDialog(
+            repository = repository,
+            onJumpToNote = { note ->
+                repository.selectSurah(note.surahNumber)
+                repository.jumpToVerse(note.verseNumber)
+                viewMode = QuranViewMode.SURAH_READING
+                showNotesListDialog = false
+            },
+            onDismiss = { showNotesListDialog = false }
+        )
+    }
+
     // Jump to Verse Dialog
     if (showJumpToVerseDialog) {
         JumpToVerseDialog(
@@ -310,10 +392,10 @@ fun QuranReaderScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        repository.addVerseNote(targetVerse.surahNumber, targetVerse.verseNumber, newNoteText)
+                        repository.addVerseNote(selectedSurah, targetVerse, newNoteText)
                         repository.toggleBookmark(selectedSurah, targetVerse, newNoteText)
                         showNoteDialogForVerse = null
-                        onShowSnackbar("Note saved to Bookmarks")
+                        onShowSnackbar("Note saved to Bookmarks & Notes")
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
                 ) {
@@ -343,11 +425,22 @@ private fun SurahReadingView(
     onAddNote: (Verse) -> Unit,
     onShowSnackbar: (String) -> Unit
 ) {
+    val listState = rememberLazyListState()
+
+    // Smooth Auto-scroll to active verse when audio is playing or jumping
+    LaunchedEffect(audioState.surahNumber, audioState.verseNumber, currentVerseIndex) {
+        if (audioState.surahNumber == surah.number && audioState.isPlaying) {
+            val targetIndex = (audioState.verseNumber + 1).coerceAtMost(surah.verses.size + 1)
+            listState.animateScrollToItem(targetIndex)
+        }
+    }
+
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 90.dp)
     ) {
-        // Mock Data Notice & Quick Nav Strip
+        // Quick Nav & Last Read Strip
         item {
             Surface(
                 color = Emerald900,
@@ -469,7 +562,7 @@ private fun SurahReadingView(
                             onClick = onOpenCatalog,
                             colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
                         ) {
-                            Text("Browse Available Surahs (Al-Fatihah, Al-Baqarah, Ya-Sin, Al-Mulk, Al-Ikhlas, etc.)")
+                            Text("Browse Available Surahs")
                         }
                     }
                 }
@@ -481,11 +574,13 @@ private fun SurahReadingView(
                         audioState.verseNumber == verse.verseNumber
 
                 val isBookmarked = repository.isVerseBookmarked(surah.number, verse.verseNumber)
+                val verseNotes = repository.getNotesForVerse(surah.number, verse.verseNumber)
 
                 VerseItemCard(
                     verse = verse,
                     isCurrentPlaying = isCurrentPlaying,
                     isBookmarked = isBookmarked,
+                    hasNotes = verseNotes.isNotEmpty(),
                     quranSettings = quranSettings,
                     onPlayAudio = {
                         repository.playVerseAudio(surah.number, verse.verseNumber)
@@ -506,11 +601,18 @@ private fun VerseItemCard(
     verse: Verse,
     isCurrentPlaying: Boolean,
     isBookmarked: Boolean,
+    hasNotes: Boolean,
     quranSettings: QuranSettings,
     onPlayAudio: () -> Unit,
     onToggleBookmark: () -> Unit,
     onAddNote: () -> Unit
 ) {
+    val lineHeightMultiplier = when (quranSettings.lineSpacing) {
+        QuranLineSpacing.COMPACT -> 1.4f
+        QuranLineSpacing.RELAXED -> 2.0f
+        else -> 1.7f
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -575,6 +677,28 @@ private fun VerseItemCard(
                             }
                         }
                     }
+
+                    if (hasNotes) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = CircleShape,
+                            color = Emerald50
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.EditNote,
+                                    contentDescription = "Has notes",
+                                    tint = Emerald700,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text("Note", style = MaterialTheme.typography.labelSmall, color = Emerald800, fontSize = 9.sp)
+                            }
+                        }
+                    }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -626,7 +750,7 @@ private fun VerseItemCard(
                 text = verse.textArabic,
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontSize = quranSettings.arabicFontSizeSp.sp,
-                    lineHeight = (quranSettings.arabicFontSizeSp * 1.7f).sp,
+                    lineHeight = (quranSettings.arabicFontSizeSp * lineHeightMultiplier).sp,
                     fontWeight = FontWeight.Medium
                 ),
                 color = MaterialTheme.colorScheme.onSurface,
@@ -636,8 +760,35 @@ private fun VerseItemCard(
                     .padding(vertical = 4.dp)
             )
 
-            // Tajwid Rule Badge if present
-            if (verse.tajwidRuleHighlight != null) {
+            // Word-by-Word breakdown if enabled
+            if (quranSettings.showWordByWord) {
+                val words = remember(verse.textArabic) { verse.textArabic.split(" ").filter { it.isNotBlank() } }
+                if (words.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(words) { word ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Emerald50,
+                                border = CardDefaults.outlinedCardBorder()
+                            ) {
+                                Text(
+                                    text = word,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                    color = Emerald900,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Tajwid Rule Badge if present and Tajwid colors enabled
+            if (quranSettings.showTajwidColors && verse.tajwidRuleHighlight != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 TajwidRuleBadge(ruleText = verse.tajwidRuleHighlight)
             }
@@ -654,18 +805,26 @@ private fun VerseItemCard(
                 )
             }
 
-            // Translation
-            if (quranSettings.showTranslation) {
+            // English Translation
+            if (quranSettings.showTranslation && (quranSettings.showEnglishTranslation || quranSettings.translationLanguage == "English" || quranSettings.readingMode == ReadingDisplayMode.MULTI_TRANSLATION)) {
                 Spacer(modifier = Modifier.height(6.dp))
-                val translationText = when (quranSettings.translationLanguage) {
-                    "Bahasa Melayu" -> verse.translationMalay
-                    else -> verse.translationEnglish
-                }
                 Text(
-                    text = translationText,
+                    text = verse.translationEnglish,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            // Malay Translation
+            if (quranSettings.showMalayTranslation || quranSettings.translationLanguage == "Bahasa Melayu" || quranSettings.readingMode == ReadingDisplayMode.MULTI_TRANSLATION) {
+                if (quranSettings.showTranslation && verse.translationMalay.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "BM: ${verse.translationMalay}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Emerald800
+                    )
+                }
             }
         }
     }
@@ -982,74 +1141,197 @@ private fun QuranSettingsDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(
-                text = "Quran Display Settings",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(imageVector = Icons.Outlined.FormatSize, contentDescription = null, tint = Emerald700)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Display & Reading Mode",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+            }
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // Font Size Slider
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Arabic Font Size", style = MaterialTheme.typography.titleSmall)
-                        Text("${settings.arabicFontSizeSp.toInt()} sp", style = MaterialTheme.typography.labelSmall, color = Emerald700)
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Reading Display Preset Modes
+                item {
+                    Column {
+                        Text(
+                            text = "Reading Mode Preset",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Emerald800
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            ReadingDisplayMode.values().forEach { mode ->
+                                val isSelected = settings.readingMode == mode
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { repository.setReadingDisplayMode(mode) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (isSelected) Emerald700 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                    contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = when (mode) {
+                                                    ReadingDisplayMode.ARABIC_ONLY -> "Mushaf / Arabic Only"
+                                                    ReadingDisplayMode.ARABIC_EN -> "Arabic + English Translation"
+                                                    ReadingDisplayMode.ARABIC_BM -> "Arabic + Bahasa Melayu"
+                                                    ReadingDisplayMode.MULTI_TRANSLATION -> "Arabic + Dual Translations"
+                                                    ReadingDisplayMode.ARABIC_TRANSLITERATION -> "Arabic + Transliteration"
+                                                },
+                                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                            )
+                                        }
+                                        if (isSelected) {
+                                            Icon(imageVector = Icons.Default.Check, contentDescription = "Selected", modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
-                    Slider(
-                        value = settings.arabicFontSizeSp,
-                        onValueChange = { repository.updateQuranFontSize(it) },
-                        valueRange = 20f..40f,
-                        colors = SliderDefaults.colors(
-                            thumbColor = Emerald700,
-                            activeTrackColor = Emerald700
-                        ),
-                        modifier = Modifier.testTag("font_size_slider")
-                    )
                 }
 
-                // Show Translation Toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Show Translation", style = MaterialTheme.typography.bodyMedium)
-                    Switch(
-                        checked = settings.showTranslation,
-                        onCheckedChange = { repository.toggleTranslation(it) },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Emerald700, checkedTrackColor = Emerald200)
-                    )
+                // Font Size Slider + Live Preview
+                item {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Arabic Font Size", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                            Text("${settings.arabicFontSizeSp.toInt()} sp", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Emerald700)
+                        }
+                        Slider(
+                            value = settings.arabicFontSizeSp,
+                            onValueChange = { repository.updateQuranFontSize(it) },
+                            valueRange = 20f..42f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Emerald700,
+                                activeTrackColor = Emerald700
+                            ),
+                            modifier = Modifier.testTag("font_size_slider")
+                        )
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Emerald50,
+                            border = CardDefaults.outlinedCardBorder()
+                        ) {
+                            Text(
+                                text = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
+                                style = MaterialTheme.typography.headlineSmall.copy(
+                                    fontSize = settings.arabicFontSizeSp.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                color = Emerald950,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Line Spacing Selector
+                item {
+                    Column {
+                        Text("Line Spacing", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            QuranLineSpacing.values().forEach { mode ->
+                                val isSelected = settings.lineSpacing == mode
+                                ChoicePill(
+                                    label = mode.label,
+                                    isSelected = isSelected,
+                                    onClick = { repository.setLineSpacing(mode) }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Tajwid Colors Toggle
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Tajwid Color Highlighting", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
+                            Text("Color-codes Ghunnah, Idgham, Ikhfa, etc.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = settings.showTajwidColors,
+                            onCheckedChange = { repository.toggleTajwidColors(it) },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Emerald700, checkedTrackColor = Emerald200)
+                        )
+                    }
+                }
+
+                // Word by Word Breakdown Toggle
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Word-by-Word Translation", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
+                            Text("Displays vocabulary cards under each verse", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = settings.showWordByWord,
+                            onCheckedChange = { repository.toggleWordByWord(it) },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Emerald700, checkedTrackColor = Emerald200)
+                        )
+                    }
                 }
 
                 // Show Transliteration Toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Show Transliteration", style = MaterialTheme.typography.bodyMedium)
-                    Switch(
-                        checked = settings.showTransliteration,
-                        onCheckedChange = { repository.toggleTransliteration(it) },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Emerald700, checkedTrackColor = Emerald200)
-                    )
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Show Transliteration", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
+                            Text("Latin phonetic pronunciation", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = settings.showTransliteration,
+                            onCheckedChange = { repository.toggleTransliteration(it) },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Emerald700, checkedTrackColor = Emerald200)
+                        )
+                    }
                 }
 
                 // Translation Language Selector
-                Column {
-                    Text("Translation Language", style = MaterialTheme.typography.titleSmall)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        languages.forEach { lang ->
-                            val isSelected = settings.translationLanguage == lang
-                            ChoicePill(
-                                label = lang,
-                                isSelected = isSelected,
-                                onClick = { repository.setTranslationLanguage(lang) }
-                            )
+                item {
+                    Column {
+                        Text("Default Translation Language", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            languages.forEach { lang ->
+                                val isSelected = settings.translationLanguage == lang
+                                ChoicePill(
+                                    label = lang,
+                                    isSelected = isSelected,
+                                    onClick = { repository.setTranslationLanguage(lang) }
+                                )
+                            }
                         }
                     }
                 }

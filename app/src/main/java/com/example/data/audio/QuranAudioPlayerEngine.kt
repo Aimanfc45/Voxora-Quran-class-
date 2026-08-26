@@ -85,9 +85,15 @@ class QuranAudioPlayerEngine(
 
     private fun getReciterFolder(reciterName: String): String {
         return when (reciterName) {
-            "Abdul Basit Abdul Samad" -> "Abdul_Basit_Murattal_192kbps"
-            "Mahmoud Khalil Al-Hussary" -> "Husary_128kbps"
+            "Abdul Basit Abdus-Samad", "Abdul Basit Abdul Samad" -> "Abdul_Basit_Murattal_192kbps"
+            "Mahmoud Khalil Al-Husary", "Mahmoud Khalil Al-Hussary" -> "Husary_128kbps"
+            "Mohamed Siddiq Al-Minshawi", "Mohamed Siddiq El-Minshawi" -> "Minshawy_Murattal_128kbps"
             "Saad Al-Ghamdi" -> "Ghamadi_40kbps"
+            "Maher Al-Muaiqly" -> "Maher_AlMuaiqly_64kbps"
+            "Abdul Rahman Al-Sudais", "Abdurrahmaan As-Sudais" -> "Abdurrahmaan_As-Sudais_192kbps"
+            "Yasser Al-Dosari", "Yasser Ad-Dussary" -> "Yasser_Ad-Dussary_128kbps"
+            "Nasser Al-Qatami" -> "Nasser_Alqatami_128kbps"
+            "Sheikh Juhany", "Abdullah Al-Juhany" -> "Abdullah_Basfar_192kbps"
             else -> "Alafasy_128kbps" // Default: Mishary Rashid Alafasy
         }
     }
@@ -255,7 +261,15 @@ class QuranAudioPlayerEngine(
     }
 
     override fun setRepeatMode(mode: AudioRepeatMode) {
-        _audioState.update { it.copy(repeatMode = mode) }
+        _audioState.update { it.copy(repeatMode = mode, repeatCurrentCount = 0) }
+    }
+
+    override fun setRepeatCount(times: Int) {
+        _audioState.update { it.copy(repeatCountSetting = times, repeatCurrentCount = 0) }
+    }
+
+    override fun setRepeatRange(start: Int, end: Int) {
+        _audioState.update { it.copy(repeatRangeStart = start, repeatRangeEnd = end) }
     }
 
     override fun toggleAutoNext(autoNext: Boolean) {
@@ -325,8 +339,27 @@ class QuranAudioPlayerEngine(
 
         when (state.repeatMode) {
             AudioRepeatMode.REPEAT_VERSE -> {
-                seekTo(0f)
-                resume()
+                val currentCount = state.repeatCurrentCount + 1
+                val targetCount = state.repeatCountSetting
+                if (targetCount >= 999 || currentCount < targetCount) {
+                    _audioState.update { it.copy(repeatCurrentCount = currentCount) }
+                    seekTo(0f)
+                    resume()
+                } else {
+                    // Done repeating this verse
+                    _audioState.update { it.copy(repeatCurrentCount = 0) }
+                    if (state.autoNextVerse) {
+                        if (verse < totalVersesInSurah) {
+                            playVerse(surah, verse + 1)
+                        } else if (surah < 114) {
+                            playVerse(surah + 1, 1)
+                        } else {
+                            stop()
+                        }
+                    } else {
+                        stop()
+                    }
+                }
             }
             AudioRepeatMode.REPEAT_SURAH -> {
                 if (verse < totalVersesInSurah) {

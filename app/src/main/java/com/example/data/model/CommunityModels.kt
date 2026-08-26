@@ -40,6 +40,11 @@ data class PostComment(
     val isTeacher: Boolean = false
 )
 
+enum class AuthMode {
+    AUTHENTICATED,
+    GUEST
+}
+
 data class UserProfile(
     val name: String = "Ahmed Al-Farsi",
     val username: String = "@ahmed_alfarsi",
@@ -52,5 +57,14 @@ data class UserProfile(
     val lessonsCompleted: Int = 32,
     val hoursSpent: Float = 48.5f,
     val surahsMemorized: Int = 8,
-    val learningStreakDays: Int = 14
-)
+    val learningStreakDays: Int = 14,
+    val isGuest: Boolean = false,
+    val dailyGoalMinutes: Int = 20,
+    val dailyGoalVerses: Int = 10,
+    val juzProgress: Int = 5,
+    val classesAttended: Int = 18,
+    val avatarEmoji: String = "🧕",
+    val totalVersesRead: Int = 420
+) {
+    val streakCount: Int get() = learningStreakDays
+}

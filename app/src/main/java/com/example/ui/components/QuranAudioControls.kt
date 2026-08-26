@@ -224,14 +224,10 @@ fun QuranAudioDetailBottomSheet(
     repository: VoxoraRepository,
     onDismiss: () -> Unit
 ) {
-    val reciters = listOf(
-        "Mishary Rashid Alafasy",
-        "Abdul Basit Abdul Samad",
-        "Mahmoud Khalil Al-Hussary",
-        "Saad Al-Ghamdi"
-    )
-
+    val recitersList by repository.reciters.collectAsState()
     var showReciterPicker by remember { mutableStateOf(false) }
+    var reciterSearchQuery by remember { mutableStateOf("") }
+    var showRepeatCountDialog by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -475,7 +471,7 @@ fun QuranAudioDetailBottomSheet(
                         color = Emerald200
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    listOf(0.75f, 1.0f, 1.25f, 1.5f).forEach { speed ->
+                    listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
                         val isSelected = audioState.playbackSpeed == speed
                         Surface(
                             onClick = { repository.setAudioPlaybackSpeed(speed) },
@@ -510,6 +506,42 @@ fun QuranAudioDetailBottomSheet(
                         ),
                         modifier = Modifier.testTag("audio_autonext_switch")
                     )
+                }
+            }
+
+            // Repeat Configuration Banner (if active)
+            if (audioState.repeatMode == AudioRepeatMode.REPEAT_VERSE) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(GoldPrimary.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Repeat Ayah ${audioState.verseNumber}:",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = GoldLight
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(1 to "1x", 3 to "3x", 5 to "5x", 999 to "Loop ∞").forEach { (count, label) ->
+                            val isSel = audioState.repeatCountSetting == count
+                            Surface(
+                                onClick = { repository.setAudioRepeatCount(count) },
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (isSel) GoldPrimary else Emerald900
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isSel) Emerald950 else Color.White,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -549,47 +581,134 @@ fun QuranAudioDetailBottomSheet(
         }
     }
 
-    // Reciter Picker Dialog
+    // Comprehensive 10 Reciters Picker Dialog
     if (showReciterPicker) {
+        val filteredReciters = remember(reciterSearchQuery, recitersList) {
+            val q = reciterSearchQuery.trim().lowercase()
+            val list = if (q.isBlank()) recitersList else recitersList.filter {
+                it.name.lowercase().contains(q) ||
+                it.arabicName.contains(reciterSearchQuery.trim()) ||
+                it.country.lowercase().contains(q)
+            }
+            list.sortedByDescending { it.isFavorite }
+        }
+
         AlertDialog(
             onDismissRequest = { showReciterPicker = false },
             title = {
-                Text(
-                    text = "Select Quran Reciter",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                )
+                Column {
+                    Text(
+                        text = "Select Quran Reciter",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = "10 verified master Qaris with high-fidelity Murattal audio",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    reciters.forEach { reciter ->
-                        val isSelected = audioState.reciterName == reciter
-                        Surface(
-                            onClick = {
-                                repository.setAudioReciter(reciter)
-                                showReciterPicker = false
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) Emerald100 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp)
+                ) {
+                    // Search bar
+                    OutlinedTextField(
+                        value = reciterSearchQuery,
+                        onValueChange = { reciterSearchQuery = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                            .testTag("reciter_search_input"),
+                        placeholder = { Text("Search reciter or country...") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null, tint = Emerald700)
+                        },
+                        trailingIcon = {
+                            if (reciterSearchQuery.isNotBlank()) {
+                                IconButton(onClick = { reciterSearchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear")
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    // Reciters list
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
+                        items(filteredReciters.size) { idx ->
+                            val reciter = filteredReciters[idx]
+                            val isSelected = audioState.reciterName == reciter.name
+                            Surface(
+                                onClick = {
+                                    repository.setAudioReciter(reciter.name)
+                                    showReciterPicker = false
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) Emerald100 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = if (isSelected) CardDefaults.outlinedCardBorder() else null,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(
-                                    text = reciter,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    ),
-                                    color = if (isSelected) Emerald900 else MaterialTheme.colorScheme.onSurface
-                                )
-                                if (isSelected) {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = Emerald700
-                                    )
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = reciter.flagEmoji,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = reciter.name,
+                                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                                    ),
+                                                    color = if (isSelected) Emerald900 else MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "${reciter.arabicName} • ${reciter.style} (${reciter.bitRate})",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = if (isSelected) Emerald800 else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(
+                                            onClick = { repository.toggleFavoriteReciter(reciter.name) },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (reciter.isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                                                contentDescription = "Favorite",
+                                                tint = if (reciter.isFavorite) GoldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckCircle,
+                                                contentDescription = "Selected",
+                                                tint = Emerald700,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -598,7 +717,7 @@ fun QuranAudioDetailBottomSheet(
             },
             confirmButton = {
                 TextButton(onClick = { showReciterPicker = false }) {
-                    Text("Close", color = Emerald700)
+                    Text("Done", color = Emerald700, fontWeight = FontWeight.Bold)
                 }
             }
         )

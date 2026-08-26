@@ -1,7 +1,9 @@
 package com.example.data.mock
 
 import com.example.data.model.JuzInfo
+import com.example.data.model.ReciterInfo
 import com.example.data.model.Surah
+import com.example.data.model.TajwidRule
 import com.example.data.model.Verse
 
 object MockQuranData {
@@ -613,5 +615,222 @@ object MockQuranData {
         JuzInfo(28, "قَدْ سَمِعَ اللَّهُ", 58, "Al-Mujadila", 1, 137),
         JuzInfo(29, "تَبَارَكَ الَّذِي", 67, "Al-Mulk", 1, 431),
         JuzInfo(30, "عَمَّ يَتَسَاءَلُونَ", 78, "An-Naba", 1, 564)
+    )
+
+    val reciterList: List<ReciterInfo> = listOf(
+        ReciterInfo(
+            id = "alafasy",
+            name = "Mishary Rashid Alafasy",
+            arabicName = "مشاري بن راشد العفاسي",
+            country = "Kuwait",
+            flagEmoji = "🇰🇼",
+            style = "Murattal",
+            audioFolder = "Alafasy_128kbps",
+            bitRate = "128kbps",
+            isFavorite = true,
+            description = "Imam of the Grand Mosque of Kuwait. Renowned for resonant, melodic and deeply emotional recitation."
+        ),
+        ReciterInfo(
+            id = "abdul_basit",
+            name = "Abdul Basit Abdus-Samad",
+            arabicName = "عبد الباسط عبد الصمد",
+            country = "Egypt",
+            flagEmoji = "🇪🇬",
+            style = "Murattal",
+            audioFolder = "Abdul_Basit_Murattal_192kbps",
+            bitRate = "192kbps",
+            isFavorite = true,
+            description = "Legendary Egyptian Qari known as the 'Golden Throat'. Unrivaled breath control and classic Tajwid precision."
+        ),
+        ReciterInfo(
+            id = "husary",
+            name = "Mahmoud Khalil Al-Husary",
+            arabicName = "محمود خليل الحصري",
+            country = "Egypt",
+            flagEmoji = "🇪🇬",
+            style = "Murattal",
+            audioFolder = "Husary_128kbps",
+            bitRate = "128kbps",
+            isFavorite = false,
+            description = "Pioneer of modern Tajwid teaching recordings. Strict adherence to Makharij and Ahkam rules."
+        ),
+        ReciterInfo(
+            id = "minshawi",
+            name = "Mohamed Siddiq Al-Minshawi",
+            arabicName = "محمد صديق المنشاوي",
+            country = "Egypt",
+            flagEmoji = "🇪🇬",
+            style = "Murattal",
+            audioFolder = "Minshawy_Murattal_128kbps",
+            bitRate = "128kbps",
+            isFavorite = false,
+            description = "One of the quadrumvirate of Egyptian recitation masters. Revered for sorrowful, deeply moving spiritual cadence."
+        ),
+        ReciterInfo(
+            id = "ghamdi",
+            name = "Saad Al-Ghamdi",
+            arabicName = "سعد الغامدي",
+            country = "Saudi Arabia",
+            flagEmoji = "🇸🇦",
+            style = "Murattal",
+            audioFolder = "Ghamadi_40kbps",
+            bitRate = "40kbps",
+            isFavorite = false,
+            description = "Prominent Saudi Imam and scholar from Dammam with clear, steady pace ideal for Quran learners."
+        ),
+        ReciterInfo(
+            id = "muaiqly",
+            name = "Maher Al-Muaiqly",
+            arabicName = "ماهر المعيقلي",
+            country = "Saudi Arabia",
+            flagEmoji = "🇸🇦",
+            style = "Murattal",
+            audioFolder = "Maher_AlMuaiqly_64kbps",
+            bitRate = "64kbps",
+            isFavorite = false,
+            description = "Celebrated Imam of the Grand Mosque in Makkah (Masjid al-Haram) known for stirring Taraweeh prayers."
+        ),
+        ReciterInfo(
+            id = "sudais",
+            name = "Abdul Rahman Al-Sudais",
+            arabicName = "عبد الرحمن السديس",
+            country = "Saudi Arabia",
+            flagEmoji = "🇸🇦",
+            style = "Murattal",
+            audioFolder = "Abdurrahmaan_As-Sudais_192kbps",
+            bitRate = "192kbps",
+            isFavorite = true,
+            description = "Chief Imam of the Grand Mosque in Makkah. Globally recognized voice characterized by passionate, rhythmic recitation."
+        ),
+        ReciterInfo(
+            id = "dosari",
+            name = "Yasser Al-Dosari",
+            arabicName = "ياسر الدوسري",
+            country = "Saudi Arabia",
+            flagEmoji = "🇸🇦",
+            style = "Murattal",
+            audioFolder = "Yasser_Ad-Dussary_128kbps",
+            bitRate = "128kbps",
+            isFavorite = false,
+            description = "Imam at Masjid al-Haram with a unique, powerful, and deeply captivating melodic voice."
+        ),
+        ReciterInfo(
+            id = "qatami",
+            name = "Nasser Al-Qatami",
+            arabicName = "ناصر القطامي",
+            country = "Saudi Arabia",
+            flagEmoji = "🇸🇦",
+            style = "Murattal",
+            audioFolder = "Nasser_Alqatami_128kbps",
+            bitRate = "128kbps",
+            isFavorite = false,
+            description = "Imam of the Princess Latifa Mosque in Riyadh. Master of emotional pacing and crystal-clear pronunciation."
+        ),
+        ReciterInfo(
+            id = "juhany",
+            name = "Sheikh Juhany",
+            arabicName = "عبد الله الجهني",
+            country = "Saudi Arabia",
+            flagEmoji = "🇸🇦",
+            style = "Murattal",
+            audioFolder = "Abdullah_Basfar_192kbps",
+            bitRate = "192kbps",
+            isFavorite = false,
+            description = "Esteemed Imam of the Grand Mosque in Makkah (Masjid al-Haram) with rich, authoritative recitation tone."
+        )
+    )
+
+    val tajwidRulesList: List<TajwidRule> = listOf(
+        TajwidRule(
+            id = "mad_asli",
+            name = "Al-Madd Al-Asli (Tabee'i)",
+            arabicName = "المَدُّ الأَصْلِيُّ (الطَّبِيعِي)",
+            category = "Mad",
+            colorHex = 0xFFD97706, // Amber / Orange
+            description = "Natural elongation of vowel letters (Alif, Waw, Ya) without a Hamzah or Sukun following it.",
+            ruleSummary = "Held for 2 Harakat (counts). Natural flow.",
+            exampleArabic = "قَالَ • نُوحِيهَا",
+            exampleTransliteration = "Qāla • Nūḥīhā",
+            verseReference = "Al-Baqarah 2:2",
+            pronunciationTip = "Do not shorten below 2 counts nor stretch beyond. Natural opening of mouth."
+        ),
+        TajwidRule(
+            id = "mad_lazim",
+            name = "Al-Madd Al-Lazim",
+            arabicName = "المَدُّ اللَّازِم",
+            category = "Mad",
+            colorHex = 0xFFDC2626, // Red
+            description = "Compulsory elongation caused by an original Sukun or Shaddah following a Madd letter.",
+            ruleSummary = "Must be elongated for 6 Harakat (counts) unconditionally.",
+            exampleArabic = "وَلَا الضَّالِّينَ • الحَاقَّةُ",
+            exampleTransliteration = "Wa-lāḍ-ḍāllīn • Al-Ḥāqqah",
+            verseReference = "Al-Fatihah 1:7",
+            pronunciationTip = "Sustain the vowel smoothly for 6 full beats before applying the Shaddah."
+        ),
+        TajwidRule(
+            id = "ikhfa_haqiqi",
+            name = "Ikhfa' Haqiqi",
+            arabicName = "الإِخْفَاءُ الحَقِيقِي",
+            category = "Ikhfa",
+            colorHex = 0xFF059669, // Emerald
+            description = "Concealment of Nun Sakinah or Tanween when followed by any of the 15 Ikhfa letters with Ghunnah.",
+            ruleSummary = "Hold nasal Ghunnah for 2 counts near the letter's articulation point.",
+            exampleArabic = "مِن قَبْلِكُم • أَنزَلْنَا",
+            exampleTransliteration = "Min qablikum • Anzalnā",
+            verseReference = "Al-Baqarah 2:4",
+            pronunciationTip = "Position tongue near the next letter's Makhraj while vibrating air through the nasal passage."
+        ),
+        TajwidRule(
+            id = "idgham_ghunnah",
+            name = "Idgham Ma'al Ghunnah",
+            arabicName = "الإِدْغَامُ بِغُنَّة",
+            category = "Idgham",
+            colorHex = 0xFF2563EB, // Blue
+            description = "Merging of Nun Sakinah or Tanween into one of the four letters (ي ن م و - Yanmu) with a 2-count nasal Ghunnah.",
+            ruleSummary = "Merge sound completely with clear 2-count nasal resonance.",
+            exampleArabic = "مَن يَقُولُ • هُدًى لِّلْمُتَّقِينَ",
+            exampleTransliteration = "May-yaqūlu • Hudal-lilmuttaqīn",
+            verseReference = "Al-Baqarah 2:8",
+            pronunciationTip = "Blend the Nun into the next letter seamlessly while sustaining the nasal hum."
+        ),
+        TajwidRule(
+            id = "iqlab",
+            name = "Iqlab (Conversion)",
+            arabicName = "الإِقْلَاب",
+            category = "Iqlab",
+            colorHex = 0xFF7C3AED, // Purple
+            description = "Converting Nun Sakinah or Tanween into a hidden Meem with Ghunnah when followed by the letter Ba (ب).",
+            ruleSummary = "Transform Nun to Mim with 2 counts Ghunnah and light lip contact.",
+            exampleArabic = "مِن بَعْدِ • عَلِيمٌ بِذَاتِ الصُّدُورِ",
+            exampleTransliteration = "Mim-ba'di • 'Alīmum bi-dhātis-ṣudūr",
+            verseReference = "Al-Baqarah 2:27",
+            pronunciationTip = "Close lips gently without pressing tightly while maintaining nasal vibration."
+        ),
+        TajwidRule(
+            id = "qalqalah",
+            name = "Qalqalah (Echo / Bouncing)",
+            arabicName = "القَلْقَلَة",
+            category = "Qalqalah",
+            colorHex = 0xFF0284C7, // Cyan
+            description = "Vibration or echoing sound made when pronouncing the 5 Qalqalah letters (ق ط ب ج د - Quṭb Jad) with Sukun.",
+            ruleSummary = "Distinct echo release on Sukun. Stronger (Kubra) when stopping.",
+            exampleArabic = "الفَلَقِ • أَحَدٌ • يَجْعَلُونَ",
+            exampleTransliteration = "Al-Falaq • Aḥad • Yaj'alūn",
+            verseReference = "Al-Ikhlas 112:1",
+            pronunciationTip = "Quickly bounce off the articulation point without adding any vowel sound."
+        ),
+        TajwidRule(
+            id = "ghunnah_mushaddadah",
+            name = "Ghunnah Musyaddadah",
+            arabicName = "الغُنَّةُ المُشَدَّدَة",
+            category = "Ghunnah",
+            colorHex = 0xFF10B981, // Teal
+            description = "Compulsory nasalization of 2 counts on Nun with Shaddah (نّ) and Meem with Shaddah (مّ).",
+            ruleSummary = "Full 2 Harakat nasal resonance from the nasal cavity (Khayshum).",
+            exampleArabic = "إِنَّ • ثُمَّ • النَّاسِ",
+            exampleTransliteration = "Inna • Thumma • An-Nās",
+            verseReference = "An-Nas 114:1",
+            pronunciationTip = "Hold the letter firmly with clear acoustic resonance from the nose."
+        )
     )
 }
