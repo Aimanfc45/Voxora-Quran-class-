@@ -83,7 +83,7 @@ fun HomePrayerCard(
                             color = Emerald800
                         )
                         Text(
-                            text = prayerState.schedule.locationName,
+                            text = "${prayerState.schedule.zoneCode} • ${prayerState.schedule.locationName}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
@@ -91,7 +91,7 @@ fun HomePrayerCard(
                     }
                 }
 
-                // Live ticking digital clock badge
+                // Live ticking digital clock badge & cached badge
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = Emerald50,
@@ -118,6 +118,26 @@ fun HomePrayerCard(
                         )
                     }
                 }
+            }
+
+            // Small cache status / last updated subtitle
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "JAKIM Standard • ${prayerState.schedule.lastUpdatedFormatted}",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+                Text(
+                    text = prayerState.schedule.hijriFormatted,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
+                    color = Emerald700
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))

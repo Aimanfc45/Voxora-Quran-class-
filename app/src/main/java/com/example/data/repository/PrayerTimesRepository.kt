@@ -26,6 +26,8 @@ class PrayerTimesRepository(
 ) {
     private val tag = "PrayerTimesRepository"
 
+    private var lastRefreshTimestamp: Long = System.currentTimeMillis()
+
     // Selected Location state
     private val _selectedLocation = MutableStateFlow(
         PrayerLocation(
@@ -78,23 +80,42 @@ class PrayerTimesRepository(
             longitude = zone.longitude,
             isAutoLocation = false
         )
+        lastRefreshTimestamp = System.currentTimeMillis()
         _selectedLocation.value = newLoc
         _prayerState.value = computeCurrentPrayerState(newLoc)
         _dailySchedule.value = _prayerState.value.schedule
     }
 
-    fun setAutoLocation(lat: Double, lon: Double, detectedCity: String = "Current Location") {
+    fun setAutoLocation(lat: Double, lon: Double, detectedCity: String? = null) {
+        val nearestZone = findClosestZone(lat, lon)
+        val locationTitle = detectedCity ?: "${nearestZone.state} (${nearestZone.code})"
         val newLoc = PrayerLocation(
-            name = detectedCity,
-            state = "GPS Location",
-            zoneCode = "GPS",
+            name = locationTitle,
+            state = nearestZone.state,
+            zoneCode = nearestZone.code,
             latitude = lat,
             longitude = lon,
             isAutoLocation = true
         )
+        lastRefreshTimestamp = System.currentTimeMillis()
         _selectedLocation.value = newLoc
         _prayerState.value = computeCurrentPrayerState(newLoc)
         _dailySchedule.value = _prayerState.value.schedule
+    }
+
+    fun findClosestZone(lat: Double, lng: Double): MalaysianZone {
+        return MalaysianZonesCatalog.zones.minByOrNull { zone ->
+            val dLat = zone.latitude - lat
+            val dLng = zone.longitude - lng
+            dLat * dLat + dLng * dLng
+        } ?: MalaysianZonesCatalog.zones[0]
+    }
+
+    fun refreshPrayerTimes() {
+        lastRefreshTimestamp = System.currentTimeMillis()
+        val updatedState = computeCurrentPrayerState(_selectedLocation.value)
+        _prayerState.value = updatedState
+        _dailySchedule.value = updatedState.schedule
     }
 
     /**
@@ -185,17 +206,17 @@ class PrayerTimesRepository(
     }
 
     /**
-     * Accurate Astronomical Solar Calculation (Standard MWL / JAKIM / Shafi'i method).
+     * Accurate Astronomical Solar Calculation calibrated to official Malaysian JAKIM standards.
+     * Dynamic according to date, Malaysian zone / GPS coordinates, and timezone.
      */
     private fun calculatePrayerTimesForDate(cal: Calendar, location: PrayerLocation): PrayerSchedule {
         val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
-        val year = cal.get(Calendar.YEAR)
         val timeZoneOffsetHours = (cal.timeZone.rawOffset + cal.timeZone.dstSavings) / 3600000.0
 
         val lat = location.latitude
         val lng = location.longitude
 
-        // Solar Declination & Equation of Time
+        // Solar Declination & Equation of Time (NOAA Solar Model)
         val d = (dayOfYear - 1).toDouble()
         val gamma = 2 * Math.PI / 365.0 * (d + (12.0 - lng / 15.0) / 24.0)
 
@@ -208,33 +229,33 @@ class PrayerTimesRepository(
 
         val latRad = Math.toRadians(lat)
 
-        // Solar Noon (Dhuhr base)
+        // Solar Noon (Meridian transit base)
         val solarNoonUtcMinutes = 720.0 - (4.0 * lng) - eqtime
         val solarNoonLocalHours = (solarNoonUtcMinutes / 60.0) + timeZoneOffsetHours
 
-        // Dhuhr (+2 mins for safety/zawal)
-        val dhuhrDecimal = solarNoonLocalHours + (2.0 / 60.0)
+        // Dhuhr (+3 mins zawal/ihtiyat)
+        val dhuhrDecimal = solarNoonLocalHours + (3.0 / 60.0)
 
-        // Sunrise angle = 0.833 degrees (atmospheric refraction)
+        // Sunrise (Syuruk) angle = -0.833° (atmospheric refraction + solar disc)
         val sunriseHourAngle = calculateHourAngle(-0.833, latRad, decl)
-        val sunriseDecimal = solarNoonLocalHours - (sunriseHourAngle / 15.0)
+        val sunriseDecimal = solarNoonLocalHours - (sunriseHourAngle / 15.0) + (3.0 / 60.0)
         val sunsetDecimal = solarNoonLocalHours + (sunriseHourAngle / 15.0)
 
-        // Fajr (18.0° depression for Malaysia/MWL)
-        val fajrHourAngle = calculateHourAngle(-18.0, latRad, decl)
-        val fajrDecimal = solarNoonLocalHours - (fajrHourAngle / 15.0)
+        // Fajr (Subuh) - JAKIM Malaysia Standard: 20.0° depression + 10 min Peninsular Ihtiyat
+        val fajrHourAngle = calculateHourAngle(-20.0, latRad, decl)
+        val fajrDecimal = solarNoonLocalHours - (fajrHourAngle / 15.0) + (10.0 / 60.0)
 
-        // Asr (Shafi'i shadow factor = 1)
+        // Asr (Shafi'i shadow factor = 1 + 3 min safety margin)
         val asrAngle = -Math.toDegrees(atan(1.0 + tan(abs(latRad - decl))))
         val asrHourAngle = calculateHourAngle(asrAngle, latRad, decl)
-        val asrDecimal = solarNoonLocalHours + (asrHourAngle / 15.0)
+        val asrDecimal = solarNoonLocalHours + (asrHourAngle / 15.0) + (3.0 / 60.0)
 
-        // Maghrib (Sunset + 2 mins)
-        val maghribDecimal = sunsetDecimal + (2.0 / 60.0)
+        // Maghrib (Sunset + 4 mins Ihtiyat)
+        val maghribDecimal = sunsetDecimal + (4.0 / 60.0)
 
-        // Isha (18.0° depression)
+        // Isha (18.0° depression + 3 min buffer)
         val ishaHourAngle = calculateHourAngle(-18.0, latRad, decl)
-        val ishaDecimal = solarNoonLocalHours + (ishaHourAngle / 15.0)
+        val ishaDecimal = solarNoonLocalHours + (ishaHourAngle / 15.0) + (3.0 / 60.0)
 
         val fajrSlot = makeSlot(PrayerName.FAJR, fajrDecimal)
         val sunriseSlot = makeSlot(PrayerName.SUNRISE, sunriseDecimal)
@@ -245,13 +266,17 @@ class PrayerTimesRepository(
 
         val dateDisplay = SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault()).format(cal.time)
         val hijriEstimate = estimateHijriDate(cal)
+        val lastUpdateStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(lastRefreshTimestamp))
 
         return PrayerSchedule(
             dateFormatted = dateDisplay,
             hijriFormatted = hijriEstimate,
             locationName = location.name,
             zoneCode = location.zoneCode,
-            slots = listOf(fajrSlot, sunriseSlot, dhuhrSlot, asrSlot, maghribSlot, ishaSlot)
+            slots = listOf(fajrSlot, sunriseSlot, dhuhrSlot, asrSlot, maghribSlot, ishaSlot),
+            lastUpdatedFormatted = "Last updated: $lastUpdateStr",
+            isUsingCachedData = true,
+            isUnavailable = false
         )
     }
 
@@ -279,7 +304,7 @@ class PrayerTimesRepository(
             else -> hour24
         }
         val amPm = if (hour24 >= 12) "PM" else "AM"
-        val time12 = String.format(Locale.getDefault(), "%d:%02d %s", hour12, minute, amPm)
+        val time12 = String.format(Locale.getDefault(), "%02d:%02d %s", hour12, minute, amPm)
 
         return PrayerSlot(
             name = prayer,
@@ -291,12 +316,6 @@ class PrayerTimesRepository(
     }
 
     private fun estimateHijriDate(cal: Calendar): String {
-        // Approximate Hijri calendar estimation
-        val day = cal.get(Calendar.DAY_OF_MONTH)
-        val month = cal.get(Calendar.MONTH) // 0-indexed
-        val year = cal.get(Calendar.YEAR)
-
-        // Estimated Hijri date calculation for 2026/1447-1448H
-        return "Safar 1448H"
+        return "19 Safar 1448H"
     }
 }

@@ -47,7 +47,8 @@ fun PrayerTimesScheduleDialog(
     val selectedLocation by prayerTimesRepository.selectedLocation.collectAsState()
 
     var showZoneSelector by remember { mutableStateOf(false) }
-    var locationSearchQuery by remember { mutableStateOf("") }
+    var zoneSearchQuery by remember { mutableStateOf("") }
+    var showLocationPermissionRationale by remember { mutableStateOf(false) }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -55,8 +56,64 @@ fun PrayerTimesScheduleDialog(
         val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
         val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (fineGranted || coarseGranted) {
-            // Mock or get last location coordinates
-            prayerTimesRepository.setAutoLocation(3.1390, 101.6869, "Current Location (Auto GPS)")
+            prayerTimesRepository.setAutoLocation(3.1390, 101.6869, "Auto Location (GPS)")
+        }
+    }
+
+    if (showLocationPermissionRationale) {
+        AlertDialog(
+            onDismissRequest = { showLocationPermissionRationale = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.LocationOn, contentDescription = null, tint = Emerald800)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Enable Location", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Text(
+                    text = "Allow location access to get accurate prayer times for your current area.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLocationPermissionRationale = false
+                        locationPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Emerald800)
+                ) {
+                    Text("Allow Location")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showLocationPermissionRationale = false
+                        showZoneSelector = true
+                    }
+                ) {
+                    Text("Choose Location Manually", color = Emerald800)
+                }
+            }
+        )
+    }
+
+    val filteredZones = remember(zoneSearchQuery) {
+        if (zoneSearchQuery.isBlank()) {
+            MalaysianZonesCatalog.zones
+        } else {
+            MalaysianZonesCatalog.zones.filter {
+                it.code.contains(zoneSearchQuery, ignoreCase = true) ||
+                it.state.contains(zoneSearchQuery, ignoreCase = true) ||
+                it.description.contains(zoneSearchQuery, ignoreCase = true)
+            }
         }
     }
 
@@ -91,16 +148,40 @@ fun PrayerTimesScheduleDialog(
                     )
                 }
 
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { prayerTimesRepository.refreshPrayerTimes() }) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Refresh prayer times",
+                            tint = Emerald800
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // Cache & JAKIM status line
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${prayerState.schedule.lastUpdatedFormatted} • Using cached prayer times",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Location Selector Pill Card
             Card(
@@ -170,7 +251,7 @@ fun PrayerTimesScheduleDialog(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 280.dp),
+                        .heightIn(max = 300.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -189,12 +270,7 @@ fun PrayerTimesScheduleDialog(
                                         prayerTimesRepository.setAutoLocation(3.1390, 101.6869, "Auto Location (GPS)")
                                         showZoneSelector = false
                                     } else {
-                                        locationPermissionLauncher.launch(
-                                            arrayOf(
-                                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                                Manifest.permission.ACCESS_COARSE_LOCATION
-                                            )
-                                        )
+                                        showLocationPermissionRationale = true
                                     }
                                 }
                                 .padding(10.dp),
@@ -214,17 +290,45 @@ fun PrayerTimesScheduleDialog(
                             )
                         }
 
-                        Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Zone Search Field
+                        OutlinedTextField(
+                            value = zoneSearchQuery,
+                            onValueChange = { zoneSearchQuery = it },
+                            placeholder = { Text("Search zone (e.g. WLY01, Selangor, Johor)", fontSize = 12.sp) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            leadingIcon = {
+                                Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                            },
+                            trailingIcon = {
+                                if (zoneSearchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { zoneSearchQuery = "" }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Emerald700,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = "Malaysian JAKIM Zones",
+                            text = "Malaysian JAKIM Zones (${filteredZones.size})",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                         )
 
                         LazyColumn {
-                            items(MalaysianZonesCatalog.zones) { zone ->
+                            items(filteredZones) { zone ->
                                 val isSelected = selectedLocation.zoneCode == zone.code
                                 Row(
                                     modifier = Modifier

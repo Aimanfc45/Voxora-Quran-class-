@@ -268,27 +268,27 @@ fun ProfileSettingsScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Grid stats
+                        // Grid stats - Responsive cards that never break words awkwardly
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            QuickStatItem(
-                                title = "Streak",
+                            OverviewStatCard(
                                 value = "${user.streakCount} Days",
-                                iconEmoji = "🔥",
+                                emoji = "🔥",
+                                label = "Day Streak",
                                 modifier = Modifier.weight(1f)
                             )
-                            QuickStatItem(
-                                title = "Juz Progress",
+                            OverviewStatCard(
                                 value = "Juz ${user.juzProgress}",
-                                iconEmoji = "📖",
+                                emoji = "📖",
+                                label = "Current Progress",
                                 modifier = Modifier.weight(1f)
                             )
-                            QuickStatItem(
-                                title = "Recited",
+                            OverviewStatCard(
                                 value = "${user.totalVersesRead}",
-                                iconEmoji = "✨",
+                                emoji = "✨",
+                                label = "Total Recited",
                                 modifier = Modifier.weight(1f)
                             )
                         }

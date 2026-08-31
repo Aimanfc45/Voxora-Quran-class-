@@ -375,15 +375,19 @@ fun LiveClassScreen(
             item {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = when (connectionQuality) {
-                        ConnectionQualityLevel.EXCELLENT -> Emerald900.copy(alpha = 0.4f)
-                        ConnectionQualityLevel.GOOD -> Emerald900.copy(alpha = 0.3f)
-                        ConnectionQualityLevel.POOR -> Color(0xFF78350F).copy(alpha = 0.4f)
-                        ConnectionQualityLevel.RECONNECTING -> Color(0xFF831843).copy(alpha = 0.4f)
-                        ConnectionQualityLevel.DISCONNECTED -> Color(0xFF7F1D1D).copy(alpha = 0.4f)
-                        ConnectionQualityLevel.UNCONFIGURED -> Emerald900.copy(alpha = 0.35f)
+                    color = when {
+                        isConnecting -> Color(0xFF78350F).copy(alpha = 0.5f)
+                        isConnectedToRealRoom -> Emerald900.copy(alpha = 0.45f)
+                        else -> Color(0xFF7F1D1D).copy(alpha = 0.45f)
                     },
-                    border = BorderStroke(1.dp, if (isConnectedToRealRoom) Emerald600.copy(alpha = 0.5f) else GoldPrimary.copy(alpha = 0.4f))
+                    border = BorderStroke(
+                        1.dp,
+                        when {
+                            isConnecting -> GoldPrimary.copy(alpha = 0.6f)
+                            isConnectedToRealRoom -> Emerald500.copy(alpha = 0.6f)
+                            else -> Color(0xFFEF4444).copy(alpha = 0.5f)
+                        }
+                    )
                 ) {
                     Row(
                         modifier = Modifier
@@ -393,45 +397,82 @@ fun LiveClassScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Icon(
-                                imageVector = if (isConnectedToRealRoom) Icons.Default.Wifi else Icons.Default.Info,
-                                contentDescription = null,
-                                tint = if (isConnectedToRealRoom) Emerald400 else GoldPrimary,
-                                modifier = Modifier.size(16.dp)
-                            )
+                            if (isConnecting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    color = GoldLight,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = if (isConnectedToRealRoom) Icons.Default.Wifi else Icons.Default.WifiOff,
+                                    contentDescription = null,
+                                    tint = if (isConnectedToRealRoom) Emerald400 else Color(0xFFFCA5A5),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = when (connectionQuality) {
-                                    ConnectionQualityLevel.EXCELLENT -> "LiveKit WebRTC Connected • Excellent Quality"
-                                    ConnectionQualityLevel.GOOD -> "LiveKit WebRTC Connected • Good Quality"
-                                    ConnectionQualityLevel.POOR -> "Weak Connection • Audio priority mode"
-                                    ConnectionQualityLevel.RECONNECTING -> "Reconnecting to live room..."
-                                    ConnectionQualityLevel.DISCONNECTED -> "Disconnected from live room"
-                                    ConnectionQualityLevel.UNCONFIGURED -> "Interactive Sandbox Mode • LiveKit ready"
+                                text = when {
+                                    isConnecting -> "Connecting to live room..."
+                                    isConnectedToRealRoom -> "Live Class • Connected (${if (connectionQuality == ConnectionQualityLevel.EXCELLENT) "HD" else "Online"})"
+                                    else -> "Disconnected from live room"
                                 },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isConnectedToRealRoom) Emerald200 else GoldLight,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = when {
+                                    isConnecting -> GoldLight
+                                    isConnectedToRealRoom -> Emerald200
+                                    else -> Color(0xFFFCA5A5)
+                                },
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
 
-                        // Role Switcher Badge (Student / Teacher Mode)
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (currentRole == ClassroomRole.TEACHER) GoldPrimary else Emerald800,
-                            modifier = Modifier.clickable {
-                                val nextRole = if (currentRole == ClassroomRole.TEACHER) ClassroomRole.STUDENT else ClassroomRole.TEACHER
-                                liveKitService.setMyRole(nextRole)
-                                onShowSnackbar("Acting as ${if (nextRole == ClassroomRole.TEACHER) "Ustaz (Teacher)" else "Student"}")
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (!isConnectedToRealRoom && !isConnecting) {
+                                Button(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            liveKitService.joinClass(
+                                                classId = liveClass.id,
+                                                participantName = "Student",
+                                                role = currentRole
+                                            )
+                                            onShowSnackbar("Reconnecting to live class...")
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Emerald600,
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier
+                                        .padding(end = 6.dp)
+                                        .testTag("live_class_reconnect_banner_btn")
+                                ) {
+                                    Text("Reconnect", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
-                        ) {
-                            Text(
-                                text = if (currentRole == ClassroomRole.TEACHER) "Ustaz Role" else "Student Role",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = if (currentRole == ClassroomRole.TEACHER) Emerald950 else Color.White,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                            )
+
+                            // Role Switcher Badge (Student / Teacher Mode)
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (currentRole == ClassroomRole.TEACHER) GoldPrimary else Emerald800,
+                                modifier = Modifier.clickable {
+                                    val nextRole = if (currentRole == ClassroomRole.TEACHER) ClassroomRole.STUDENT else ClassroomRole.TEACHER
+                                    liveKitService.setMyRole(nextRole)
+                                    onShowSnackbar("Acting as ${if (nextRole == ClassroomRole.TEACHER) "Ustaz (Teacher)" else "Student"}")
+                                }
+                            ) {
+                                Text(
+                                    text = if (currentRole == ClassroomRole.TEACHER) "Ustaz Role" else "Student Role",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (currentRole == ClassroomRole.TEACHER) Emerald950 else Color.White,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -568,7 +609,7 @@ fun LiveClassScreen(
                             )
                         }
 
-                        // Top gradient overlay with teacher speaking indicator
+                        // Top gradient overlay with teacher state indicator
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -585,27 +626,48 @@ fun LiveClassScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
+                                    val isTeacherSpeaking = isConnectedToRealRoom && activeSpeaker != null &&
+                                            (activeSpeaker == liveClass.teacher.name || activeSpeaker?.contains("Ahmad") == true)
+
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = Emerald500
+                                        color = when {
+                                            isTeacherSpeaking -> Emerald500
+                                            isConnectedToRealRoom -> Emerald900.copy(alpha = 0.8f)
+                                            isConnecting -> Color(0xFF92400E)
+                                            else -> Color.Black.copy(alpha = 0.6f)
+                                        }
                                     ) {
                                         Row(
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.GraphicEq,
-                                                contentDescription = null,
-                                                tint = Color.White,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = if (activeSpeaker != null) "$activeSpeaker Speaking" else "Ustaz Ahmad (Speaking)",
-                                                color = Color.White,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                            if (isTeacherSpeaking) {
+                                                Icon(
+                                                    imageVector = Icons.Default.GraphicEq,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "$activeSpeaker (Speaking)",
+                                                    color = Color.White,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = when {
+                                                        isConnectedToRealRoom -> "${liveClass.teacher.name} • Live"
+                                                        isConnecting -> "Connecting..."
+                                                        else -> "${liveClass.teacher.name} (Offline)"
+                                                    },
+                                                    color = if (isConnectedToRealRoom) Emerald200 else Color.LightGray,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -615,11 +677,62 @@ fun LiveClassScreen(
                                     color = Color.Black.copy(alpha = 0.5f)
                                 ) {
                                     Text(
-                                        text = if (isConnectedToRealRoom) "LiveKit HD" else "Sandbox Mode",
-                                        color = Emerald300,
+                                        text = when {
+                                            isConnectedToRealRoom -> "LiveKit HD"
+                                            isConnecting -> "Connecting..."
+                                            else -> "Disconnected"
+                                        },
+                                        color = if (isConnectedToRealRoom) Emerald300 else Color(0xFFFCA5A5),
                                         fontSize = 10.sp,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
+                                }
+                            }
+                        }
+
+                        // Center Disconnected overlay with Reconnect action
+                        if (!isConnectedToRealRoom && !isConnecting) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.45f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Default.WifiOff,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "Disconnected from Live Room",
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                liveKitService.joinClass(
+                                                    classId = liveClass.id,
+                                                    participantName = "Student",
+                                                    role = currentRole
+                                                )
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Emerald600,
+                                            contentColor = Color.White
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                    ) {
+                                        Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Reconnect Live Class", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
@@ -729,6 +842,9 @@ fun LiveClassScreen(
                                     )
                                 }
 
+                                val isTeacherSpeaking = isConnectedToRealRoom && activeSpeaker != null &&
+                                        (activeSpeaker == liveClass.teacher.name || activeSpeaker?.contains("Ahmad") == true)
+
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -743,25 +859,43 @@ fun LiveClassScreen(
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = Emerald600
+                                        color = when {
+                                            isTeacherSpeaking -> Emerald600
+                                            isConnectedToRealRoom -> Emerald900.copy(alpha = 0.8f)
+                                            isConnecting -> Color(0xFF92400E)
+                                            else -> Color.Black.copy(alpha = 0.6f)
+                                        }
                                     ) {
                                         Row(
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.GraphicEq,
-                                                contentDescription = null,
-                                                tint = Color.White,
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = if (activeSpeaker != null) "$activeSpeaker Speaking" else liveClass.teacher.name,
-                                                color = Color.White,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                            if (isTeacherSpeaking) {
+                                                Icon(
+                                                    imageVector = Icons.Default.GraphicEq,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "$activeSpeaker (Speaking)",
+                                                    color = Color.White,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = when {
+                                                        isConnectedToRealRoom -> "${liveClass.teacher.name} • Live"
+                                                        isConnecting -> "Connecting..."
+                                                        else -> "${liveClass.teacher.name} (Offline)"
+                                                    },
+                                                    color = if (isConnectedToRealRoom) Emerald200 else Color.LightGray,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
                                         }
                                     }
 

@@ -35,7 +35,10 @@ data class PrayerSchedule(
     val hijriFormatted: String, // "19 Safar 1448H"
     val locationName: String, // "Kuala Lumpur, Malaysia"
     val zoneCode: String, // "WLY01"
-    val slots: List<PrayerSlot>
+    val slots: List<PrayerSlot>,
+    val lastUpdatedFormatted: String = "Just now",
+    val isUsingCachedData: Boolean = false,
+    val isUnavailable: Boolean = false
 ) {
     val fajr: PrayerSlot get() = slots.firstOrNull { it.name == PrayerName.FAJR } ?: slots[0]
     val sunrise: PrayerSlot get() = slots.firstOrNull { it.name == PrayerName.SUNRISE } ?: slots[1]
@@ -54,7 +57,10 @@ data class PrayerCountdownState(
     val formattedCountdown: String, // "01:24:32 remaining"
     val remainingSeconds: Long,
     val progressFraction: Float, // 0.0f to 1.0f
-    val schedule: PrayerSchedule
+    val schedule: PrayerSchedule,
+    val lastUpdatedFormatted: String = schedule.lastUpdatedFormatted,
+    val isUsingCachedData: Boolean = schedule.isUsingCachedData,
+    val isUnavailable: Boolean = schedule.isUnavailable
 )
 
 data class MalaysianZone(

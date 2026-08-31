@@ -117,7 +117,7 @@ class LiveKitClassService(
     val latestAssessment: StateFlow<RecitationAssessment?> = _latestAssessment.asStateFlow()
 
     // Active Speaker & Reciter
-    private val _activeSpeaker = MutableStateFlow<String?>("Ustaz Ahmad")
+    private val _activeSpeaker = MutableStateFlow<String?>(null)
     val activeSpeaker: StateFlow<String?> = _activeSpeaker.asStateFlow()
 
     private val _selectedStudentReciter = MutableStateFlow<String?>(null)
