@@ -5,6 +5,7 @@ import com.example.data.api.QuranApiService
 import com.example.data.audio.QuranAudioPlayerEngine
 import com.example.data.mock.*
 import com.example.data.model.*
+import com.example.data.sync.SyncStatus
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -16,6 +17,12 @@ class VoxoraRepository(
     // ----------------------------------------------------
     // User & Progress State
     // ----------------------------------------------------
+    private val _hasCompletedOnboarding = MutableStateFlow(true)
+    val hasCompletedOnboarding: StateFlow<Boolean> = _hasCompletedOnboarding.asStateFlow()
+
+    private val _cloudSyncStatus = MutableStateFlow(SyncStatus.IDLE)
+    val cloudSyncStatus: StateFlow<SyncStatus> = _cloudSyncStatus.asStateFlow()
+
     private val _authMode = MutableStateFlow(AuthMode.AUTHENTICATED)
     val authMode: StateFlow<AuthMode> = _authMode.asStateFlow()
 
@@ -542,7 +549,7 @@ class VoxoraRepository(
     // BOOKMARKS & PRIVATE NOTES CRUD
     // ====================================================
 
-    fun toggleBookmark(surah: Surah, verse: Verse, customNote: String = ""): Boolean {
+    fun toggleBookmark(surah: Surah, verse: Verse, customNote: String = "", category: String = "Favorites"): Boolean {
         val existing = _bookmarks.value.find { it.surahNumber == surah.number && it.verseNumber == verse.verseNumber }
         return if (existing != null) {
             _bookmarks.update { it.filterNot { b -> b.id == existing.id } }
@@ -554,7 +561,8 @@ class VoxoraRepository(
                 surahName = surah.nameEnglish,
                 verseNumber = verse.verseNumber,
                 snippetArabic = verse.textArabic.take(35) + "...",
-                note = customNote.ifBlank { "Bookmarked verse" }
+                note = customNote.ifBlank { "Bookmarked verse" },
+                category = category
             )
             _bookmarks.update { listOf(newBm) + it }
             true
@@ -1136,5 +1144,96 @@ class VoxoraRepository(
 
     fun updateProfile(name: String, bio: String, country: String) {
         updateUserProfile(name = name, bio = bio, country = country)
+    }
+
+    // ====================================================
+    // ONBOARDING & AUTH (Phase 2)
+    // ====================================================
+
+    fun completeOnboarding() {
+        _hasCompletedOnboarding.value = true
+    }
+
+    fun resetOnboarding() {
+        _hasCompletedOnboarding.value = false
+    }
+
+    fun authenticateUser(email: String, pass: String): Boolean {
+        if (email.isBlank()) return false
+        val display = email.substringBefore("@").replace(".", " ").capitalize()
+        _userProfile.update {
+            it.copy(
+                email = email.trim(),
+                name = if (it.isGuest) display else it.name,
+                username = if (it.isGuest) "@${email.substringBefore("@")}" else it.username,
+                isGuest = false
+            )
+        }
+        _authMode.value = AuthMode.AUTHENTICATED
+        triggerCloudSync()
+        return true
+    }
+
+    fun createAccountUser(name: String, email: String, pass: String, country: String, level: String): Boolean {
+        if (email.isBlank() || name.isBlank()) return false
+        _userProfile.update {
+            it.copy(
+                name = name.trim(),
+                email = email.trim(),
+                username = "@${email.substringBefore("@").lowercase()}",
+                country = country.ifBlank { "Malaysia" },
+                learningLevel = level.ifBlank { "Beginner (Juz 1)" },
+                isGuest = false
+            )
+        }
+        _authMode.value = AuthMode.AUTHENTICATED
+        triggerCloudSync()
+        return true
+    }
+
+    fun continueAsGuestUser() {
+        _userProfile.update {
+            it.copy(
+                name = "Guest Learner",
+                username = "@guest_learner",
+                email = "guest@voxora.local",
+                isGuest = true
+            )
+        }
+        _authMode.value = AuthMode.GUEST
+    }
+
+    fun signOutUser() {
+        _userProfile.update {
+            it.copy(
+                name = "Guest Learner",
+                username = "@guest_learner",
+                email = "guest@voxora.local",
+                isGuest = true
+            )
+        }
+        _authMode.value = AuthMode.GUEST
+    }
+
+    // ====================================================
+    // AUDIO SLEEP TIMER
+    // ====================================================
+
+    fun setAudioSleepTimer(minutes: Int) {
+        audioEngine.setSleepTimer(minutes)
+    }
+
+    // ====================================================
+    // CLOUD SYNC FOUNDATION
+    // ====================================================
+
+    fun triggerCloudSync() {
+        coroutineScope.launch {
+            _cloudSyncStatus.value = SyncStatus.SYNCING
+            delay(1200)
+            _cloudSyncStatus.value = SyncStatus.SYNCED
+            delay(3000)
+            _cloudSyncStatus.value = SyncStatus.IDLE
+        }
     }
 }

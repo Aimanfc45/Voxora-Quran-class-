@@ -28,6 +28,7 @@ class QuranAudioPlayerEngine(
 
     private var mediaPlayer: MediaPlayer? = null
     private var progressJob: Job? = null
+    private var sleepTimerJob: Job? = null
     private var isPrepared = false
 
     init {
@@ -292,6 +293,45 @@ class QuranAudioPlayerEngine(
         }
     }
 
+    override fun setSleepTimer(minutes: Int) {
+        sleepTimerJob?.cancel()
+        if (minutes <= 0) {
+            _audioState.update { it.copy(sleepTimerMinutes = 0, sleepTimerRemainingSeconds = 0) }
+            return
+        }
+        if (minutes == -1) {
+            // End of Surah mode
+            _audioState.update { it.copy(sleepTimerMinutes = -1, sleepTimerRemainingSeconds = 0) }
+            return
+        }
+
+        val totalSeconds = minutes * 60
+        _audioState.update {
+            it.copy(
+                sleepTimerMinutes = minutes,
+                sleepTimerRemainingSeconds = totalSeconds
+            )
+        }
+
+        sleepTimerJob = coroutineScope.launch {
+            var remaining = totalSeconds
+            while (isActive && remaining > 0) {
+                delay(1000)
+                remaining--
+                _audioState.update { it.copy(sleepTimerRemainingSeconds = remaining) }
+            }
+            if (isActive && remaining <= 0) {
+                pause()
+                _audioState.update {
+                    it.copy(
+                        sleepTimerMinutes = 0,
+                        sleepTimerRemainingSeconds = 0
+                    )
+                }
+            }
+        }
+    }
+
     override fun nextVerse() {
         val state = _audioState.value
         val totalVersesInSurah = getSurahVerseCount?.invoke(state.surahNumber) ?: 286
@@ -344,6 +384,12 @@ class QuranAudioPlayerEngine(
         val surah = state.surahNumber
         val verse = state.verseNumber
         val totalVersesInSurah = getSurahVerseCount?.invoke(surah) ?: 7
+
+        if (state.sleepTimerMinutes == -1 && verse >= totalVersesInSurah) {
+            stop()
+            _audioState.update { it.copy(sleepTimerMinutes = 0, sleepTimerRemainingSeconds = 0) }
+            return
+        }
 
         when (state.repeatMode) {
             AudioRepeatMode.REPEAT_VERSE -> {
@@ -403,6 +449,7 @@ class QuranAudioPlayerEngine(
     fun release() {
         try {
             progressJob?.cancel()
+            sleepTimerJob?.cancel()
             mediaPlayer?.release()
             mediaPlayer = null
             isPrepared = false

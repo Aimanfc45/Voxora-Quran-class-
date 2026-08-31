@@ -76,7 +76,9 @@ data class QuranAudioState(
     val reciterId: String = "alafasy",
     val repeatRangeStart: Int = 1,
     val repeatRangeEnd: Int = 7,
-    val audioUrl: String = ""
+    val audioUrl: String = "",
+    val sleepTimerMinutes: Int = 0, // 0 = Off, 15, 30, 45, 60, -1 = End of Surah
+    val sleepTimerRemainingSeconds: Int = 0
 )
 
 data class Surah(
@@ -119,7 +121,8 @@ data class QuranBookmark(
     val verseNumber: Int,
     val snippetArabic: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val note: String = ""
+    val note: String = "",
+    val category: String = "Favorites" // "Favorites", "Daily Tilawah", "Hifz Revision", "Reflections"
 )
 
 data class VerseNote(

@@ -17,10 +17,15 @@ val Emerald50 = Color(0xFFECFDF5)
 
 // Gold Accents
 val GoldPrimary = Color(0xFFD4AF37)
+val Gold500 = Color(0xFFD4AF37)
+val Gold400 = Color(0xFFE5C058)
+val Gold300 = Color(0xFFEED17B)
 val GoldDark = Color(0xFF997A15)
 val GoldLight = Color(0xFFF3E5AB)
 val GoldContainer = Color(0xFFFEF9C3)
 val GoldOnContainer = Color(0xFF713F12)
+
+val DeepEmerald950 = Emerald950
 
 // Warm Neutrals & Backgrounds
 val WarmBackground = Color(0xFFF8FAF8)

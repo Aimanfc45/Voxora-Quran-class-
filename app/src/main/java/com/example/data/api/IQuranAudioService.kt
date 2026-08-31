@@ -24,4 +24,5 @@ interface IQuranAudioService {
     fun setRepeatRange(start: Int, end: Int)
     fun toggleAutoNext(autoNext: Boolean)
     fun setReciter(reciterName: String)
+    fun setSleepTimer(minutes: Int)
 }

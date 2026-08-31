@@ -51,13 +51,17 @@ enum class SubScreen {
     NONE,
     LIVE_CLASS,
     TEACHER_DISCOVERY,
-    PROGRESS_DASHBOARD
+    PROGRESS_DASHBOARD,
+    SALAH_MODE,
+    AUTH_SCREEN,
+    ONBOARDING
 }
 
 @Composable
 fun VoxoraApp(
     repository: VoxoraRepository = remember { VoxoraRepository() }
 ) {
+    val hasCompletedOnboarding by repository.hasCompletedOnboarding.collectAsState()
     var currentDestination by remember { mutableStateOf(MainDestination.HOME) }
     var currentSubScreen by remember { mutableStateOf(SubScreen.NONE) }
     var selectedTeacherForDiscovery by remember { mutableStateOf<Teacher?>(null) }
@@ -82,6 +86,25 @@ fun VoxoraApp(
     val configuration = LocalConfiguration.current
     val isWideScreen = configuration.screenWidthDp >= 720
 
+    // First Launch Onboarding Flow
+    if (!hasCompletedOnboarding) {
+        OnboardingScreen(
+            onFinishOnboarding = { goToAuth ->
+                repository.completeOnboarding()
+                if (goToAuth) {
+                    currentSubScreen = SubScreen.AUTH_SCREEN
+                } else {
+                    currentSubScreen = SubScreen.NONE
+                }
+            }
+        )
+        return
+    }
+
+    val isFullScreenSubScreen = currentSubScreen == SubScreen.LIVE_CLASS || 
+                                currentSubScreen == SubScreen.AUTH_SCREEN || 
+                                currentSubScreen == SubScreen.ONBOARDING
+
     Scaffold(
         snackbarHost = {
             SnackbarHost(
@@ -102,7 +125,7 @@ fun VoxoraApp(
             )
         },
         bottomBar = {
-            if (currentSubScreen != SubScreen.LIVE_CLASS) {
+            if (!isFullScreenSubScreen) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     // Global persistent mini audio player
                     val isAudioActive = audioState.isPlaying || audioState.isLoading || audioState.currentPositionSeconds > 0f
@@ -167,10 +190,10 @@ fun VoxoraApp(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(if (currentSubScreen == SubScreen.LIVE_CLASS) PaddingValues(0.dp) else paddingValues)
+                .padding(if (isFullScreenSubScreen) PaddingValues(0.dp) else paddingValues)
         ) {
             // Wide Screen Desktop Sidebar Navigation Rail
-            if (isWideScreen && currentSubScreen != SubScreen.LIVE_CLASS) {
+            if (isWideScreen && !isFullScreenSubScreen) {
                 NavigationRail(
                     containerColor = MaterialTheme.colorScheme.surface,
                     header = {
@@ -223,6 +246,27 @@ fun VoxoraApp(
                     .fillMaxHeight()
             ) {
                 when (currentSubScreen) {
+                    SubScreen.ONBOARDING -> {
+                        OnboardingScreen(
+                            onFinishOnboarding = { goToAuth ->
+                                currentSubScreen = if (goToAuth) SubScreen.AUTH_SCREEN else SubScreen.NONE
+                            }
+                        )
+                    }
+                    SubScreen.AUTH_SCREEN -> {
+                        AuthScreen(
+                            repository = repository,
+                            onAuthSuccess = { currentSubScreen = SubScreen.NONE },
+                            onBack = { currentSubScreen = SubScreen.NONE },
+                            onShowSnackbar = showSnackbar
+                        )
+                    }
+                    SubScreen.SALAH_MODE -> {
+                        SalahModeScreen(
+                            onBack = { currentSubScreen = SubScreen.NONE },
+                            onShowSnackbar = showSnackbar
+                        )
+                    }
                     SubScreen.LIVE_CLASS -> {
                         LiveClassScreen(
                             repository = repository,
@@ -276,7 +320,13 @@ fun VoxoraApp(
                                         selectedTeacherForDiscovery = teacher
                                         currentSubScreen = SubScreen.TEACHER_DISCOVERY
                                     },
-                                    onShowSnackbar = showSnackbar
+                                    onShowSnackbar = showSnackbar,
+                                    onNavigateToSalahMode = {
+                                        currentSubScreen = SubScreen.SALAH_MODE
+                                    },
+                                    onNavigateToAuth = {
+                                        currentSubScreen = SubScreen.AUTH_SCREEN
+                                    }
                                 )
                             }
                             MainDestination.CLASSES -> {
@@ -306,7 +356,16 @@ fun VoxoraApp(
                             MainDestination.PROFILE -> {
                                 ProfileSettingsScreen(
                                     repository = repository,
-                                    onShowSnackbar = showSnackbar
+                                    onShowSnackbar = showSnackbar,
+                                    onNavigateToAuth = {
+                                        currentSubScreen = SubScreen.AUTH_SCREEN
+                                    },
+                                    onNavigateToOnboarding = {
+                                        currentSubScreen = SubScreen.ONBOARDING
+                                    },
+                                    onNavigateToSalahMode = {
+                                        currentSubScreen = SubScreen.SALAH_MODE
+                                    }
                                 )
                             }
                         }

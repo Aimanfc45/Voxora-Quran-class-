@@ -48,6 +48,8 @@ fun HomeScreen(
     onNavigateToProfile: () -> Unit,
     onTeacherSelect: (Teacher) -> Unit,
     onShowSnackbar: (String) -> Unit,
+    onNavigateToSalahMode: () -> Unit = {},
+    onNavigateToAuth: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val user by repository.userProfile.collectAsState()
@@ -354,6 +356,50 @@ fun HomeScreen(
                             onClick = onNavigateToCommunity,
                             modifier = Modifier.weight(1f),
                             testTag = "quick_action_community"
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        QuickActionItem(
+                            title = "Salah Mode",
+                            icon = Icons.Outlined.AccessibilityNew,
+                            color = Emerald800,
+                            bgColor = Emerald100,
+                            onClick = onNavigateToSalahMode,
+                            modifier = Modifier.weight(1f),
+                            testTag = "quick_action_salah_mode"
+                        )
+                        QuickActionItem(
+                            title = "Dashboard",
+                            icon = Icons.Outlined.Insights,
+                            color = Color(0xFFC05621),
+                            bgColor = Color(0xFFFEEBC8),
+                            onClick = onNavigateToProgress,
+                            modifier = Modifier.weight(1f),
+                            testTag = "quick_action_progress_dashboard"
+                        )
+                        QuickActionItem(
+                            title = "Bookmarks",
+                            icon = Icons.Outlined.BookmarkBorder,
+                            color = Color(0xFF0D9488),
+                            bgColor = Color(0xFFCCFBF1),
+                            onClick = onNavigateToProfile,
+                            modifier = Modifier.weight(1f),
+                            testTag = "quick_action_bookmarks_home"
+                        )
+                        QuickActionItem(
+                            title = if (user.isGuest) "Sign In" else "Account",
+                            icon = if (user.isGuest) Icons.Outlined.Login else Icons.Outlined.AccountCircle,
+                            color = if (user.isGuest) Color(0xFFB45309) else Emerald800,
+                            bgColor = if (user.isGuest) Color(0xFFFEF3C7) else Emerald100,
+                            onClick = if (user.isGuest) onNavigateToAuth else onNavigateToProfile,
+                            modifier = Modifier.weight(1f),
+                            testTag = "quick_action_account_home"
                         )
                     }
                 }

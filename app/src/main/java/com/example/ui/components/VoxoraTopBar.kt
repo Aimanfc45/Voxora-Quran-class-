@@ -29,6 +29,7 @@ fun VoxoraHeaderBar(
     title: String,
     subtitle: String? = null,
     unreadCount: Int = 0,
+    navigationIcon: (@Composable () -> Unit)? = null,
     onSearchClick: (() -> Unit)? = null,
     onNotificationClick: (() -> Unit)? = null,
     onProfileClick: (() -> Unit)? = null,
@@ -40,6 +41,9 @@ fun VoxoraHeaderBar(
             containerColor = MaterialTheme.colorScheme.surface,
             titleContentColor = MaterialTheme.colorScheme.onSurface
         ),
+        navigationIcon = {
+            navigationIcon?.invoke()
+        },
         title = {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {

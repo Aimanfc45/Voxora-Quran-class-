@@ -37,6 +37,9 @@ import com.example.ui.theme.*
 fun ProfileSettingsScreen(
     repository: VoxoraRepository,
     onShowSnackbar: (String) -> Unit,
+    onNavigateToAuth: () -> Unit = {},
+    onNavigateToOnboarding: () -> Unit = {},
+    onNavigateToSalahMode: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val user by repository.userProfile.collectAsState()
