@@ -29,16 +29,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.model.Teacher
+import com.example.data.repository.PrayerTimesRepository
 import com.example.data.repository.VoxoraRepository
-import com.example.ui.components.NotificationCenterSheet
-import com.example.ui.components.QuickStatItem
-import com.example.ui.components.SubtleIslamicPattern
-import com.example.ui.components.VoxoraHeaderBar
+import com.example.ui.components.*
 import com.example.ui.theme.*
 
 @Composable
 fun HomeScreen(
     repository: VoxoraRepository,
+    prayerTimesRepository: PrayerTimesRepository = remember { PrayerTimesRepository() },
     onNavigateToQuran: () -> Unit,
     onNavigateToLiveClass: () -> Unit,
     onNavigateToClasses: () -> Unit,
@@ -58,9 +57,11 @@ fun HomeScreen(
     val teachers by repository.teachers.collectAsState()
     val groups by repository.communityGroups.collectAsState()
     val unreadCount by repository.unreadNotificationsCount.collectAsState()
+    val prayerState by prayerTimesRepository.prayerState.collectAsState()
 
     var showNotificationsSheet by remember { mutableStateOf(false) }
     var showInspirationDialog by remember { mutableStateOf(false) }
+    var showPrayerScheduleDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -188,7 +189,16 @@ fun HomeScreen(
                 }
             }
 
-            // 2. Continue Learning Card
+            // 2. Real-Time Prayer Times & Clock Card
+            item {
+                HomePrayerCard(
+                    prayerState = prayerState,
+                    onViewAllPrayerTimes = { showPrayerScheduleDialog = true },
+                    onOpenSalahMode = onNavigateToSalahMode
+                )
+            }
+
+            // 3. Continue Learning Card
             item {
                 Card(
                     modifier = Modifier
@@ -685,6 +695,18 @@ fun HomeScreen(
                 onNavigateToProgress()
             },
             onShowSnackbar = onShowSnackbar
+        )
+    }
+
+    // Full Prayer Schedule & Malaysian Zone Selector BottomSheet
+    if (showPrayerScheduleDialog) {
+        PrayerTimesScheduleDialog(
+            prayerTimesRepository = prayerTimesRepository,
+            onDismiss = { showPrayerScheduleDialog = false },
+            onNavigateToSalahMode = {
+                showPrayerScheduleDialog = false
+                onNavigateToSalahMode()
+            }
         )
     }
 }

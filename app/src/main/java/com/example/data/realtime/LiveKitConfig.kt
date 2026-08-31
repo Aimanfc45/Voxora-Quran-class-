@@ -15,22 +15,24 @@ package com.example.data.realtime
  * Set [devServerUrl] and optionally supply a test token generated via LiveKit CLI or Console.
  */
 data class LiveKitConfig(
-    val serverUrl: String = "",
+    val serverUrl: String = DEFAULT_SERVER_URL,
+    val devTokenServerId: String = DEFAULT_DEV_TOKEN_SERVER_ID,
     val tokenEndpoint: String = "",
     val devToken: String = "",
-    val isConfigured: Boolean = false
+    val isConfigured: Boolean = true
 ) {
     companion object {
-        // Default environment placeholders
-        const val DEFAULT_SERVER_URL = "wss://voxora-live.livekit.cloud"
-        const val DEFAULT_TOKEN_ENDPOINT = "https://api.voxora.app/api/v1/livekit/token"
+        const val DEFAULT_SERVER_URL = "wss://voxora-quran-class-2op9ozf4.livekit.cloud"
+        const val DEFAULT_DEV_TOKEN_SERVER_ID = "voxoraquranclass-1pdkmx"
+        const val DEFAULT_TOKEN_ENDPOINT = ""
 
         fun createDefault(): LiveKitConfig {
             return LiveKitConfig(
-                serverUrl = "",
+                serverUrl = DEFAULT_SERVER_URL,
+                devTokenServerId = DEFAULT_DEV_TOKEN_SERVER_ID,
                 tokenEndpoint = "",
                 devToken = "",
-                isConfigured = false
+                isConfigured = true
             )
         }
     }

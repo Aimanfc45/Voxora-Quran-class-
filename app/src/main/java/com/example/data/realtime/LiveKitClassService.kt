@@ -22,8 +22,10 @@ import io.livekit.android.room.track.Track
 import io.livekit.android.room.track.VideoTrack
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -255,13 +257,12 @@ class LiveKitClassService(
                 setupRoomEventListener()
             }
 
-            // Retrieve token from tokenEndpoint or use devToken
-            val token = if (currentConfig.devToken.isNotBlank()) {
-                currentConfig.devToken
-            } else if (currentConfig.tokenEndpoint.isNotBlank()) {
-                fetchTokenFromBackend(currentConfig.tokenEndpoint, classId, participantName)
-            } else {
-                throw IllegalStateException("LiveKit Token or Token Endpoint must be configured.")
+            // Retrieve token from devToken, tokenEndpoint, or devTokenServerId
+            val token = when {
+                currentConfig.devToken.isNotBlank() -> currentConfig.devToken
+                currentConfig.tokenEndpoint.isNotBlank() -> fetchTokenFromBackend(currentConfig.tokenEndpoint, classId, participantName)
+                currentConfig.devTokenServerId.isNotBlank() -> fetchDevSandboxToken(currentConfig.devTokenServerId, classId, participantName, currentConfig.serverUrl)
+                else -> throw IllegalStateException("LiveKit Token or Development Token Server must be configured.")
             }
 
             r.connect(currentConfig.serverUrl, token)
@@ -745,5 +746,60 @@ class LiveKitClassService(
         return json.optString("token").ifBlank {
             json.optString("jwt")
         }
+    }
+
+    private fun fetchDevSandboxToken(
+        sandboxId: String,
+        roomName: String,
+        participantName: String,
+        serverUrl: String
+    ): String {
+        val payload = JSONObject().apply {
+            put("sandboxId", sandboxId)
+            put("roomName", roomName)
+            put("participantName", participantName)
+            put("serverUrl", serverUrl)
+        }
+
+        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+        val requestBody = payload.toString().toRequestBody(mediaType)
+
+        val sandboxUrls = listOf(
+            "https://cloud-api.livekit.io/api/sandbox/tokens",
+            "https://cloud.livekit.io/api/sandbox/tokens",
+            "https://api.livekit.io/api/sandbox/tokens"
+        )
+
+        var lastError: Exception? = null
+        for (url in sandboxUrls) {
+            try {
+                val request = Request.Builder()
+                    .url(url)
+                    .post(requestBody)
+                    .header("Accept", "application/json")
+                    .header("Content-Type", "application/json")
+                    .build()
+
+                val response = okHttpClient.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: continue
+                    val json = JSONObject(body)
+                    val token = json.optString("token")
+                        .ifBlank { json.optString("jwt") }
+                        .ifBlank { json.optString("accessToken") }
+                    if (token.isNotBlank()) {
+                        return token
+                    }
+                }
+            } catch (e: Exception) {
+                lastError = e
+                Log.w(tag, "Sandbox token request to $url failed: ${e.message}")
+            }
+        }
+
+        throw IllegalStateException(
+            "Unable to obtain development token from LiveKit Server ($sandboxId). " +
+                    (lastError?.message ?: "Please check internet connection or provide custom token.")
+        )
     }
 }
