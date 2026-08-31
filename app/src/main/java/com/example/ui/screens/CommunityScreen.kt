@@ -26,6 +26,7 @@ import com.example.data.model.CommunityGroup
 import com.example.data.model.CommunityPost
 import com.example.data.repository.VoxoraRepository
 import com.example.ui.components.ChoicePill
+import com.example.ui.components.GuestAccountBottomSheet
 import com.example.ui.theme.*
 
 enum class CommunityViewTab {
@@ -46,8 +47,10 @@ fun CommunityScreen(
     var selectedTab by remember { mutableStateOf(CommunityViewTab.FEED) }
     var selectedCategoryFilter by remember { mutableStateOf("All") }
     var showCreatePostDialog by remember { mutableStateOf(false) }
+    var showGuestAccountSheet by remember { mutableStateOf(false) }
     var activePostForComments by remember { mutableStateOf<CommunityPost?>(null) }
     var activePostForModeration by remember { mutableStateOf<CommunityPost?>(null) }
+    val user by repository.userProfile.collectAsState()
 
     val categories = listOf("All", "Tajwid Tips", "Memorization", "Reflections", "Questions")
 
@@ -69,7 +72,13 @@ fun CommunityScreen(
         floatingActionButton = {
             if (selectedTab == CommunityViewTab.FEED) {
                 FloatingActionButton(
-                    onClick = { showCreatePostDialog = true },
+                    onClick = {
+                        if (user.isGuest) {
+                            showGuestAccountSheet = true
+                        } else {
+                            showCreatePostDialog = true
+                        }
+                    },
                     containerColor = GoldPrimary,
                     contentColor = Emerald950,
                     modifier = Modifier.testTag("create_community_post_fab")
@@ -187,6 +196,15 @@ fun CommunityScreen(
                 onShowSnackbar("Post shared with community!")
             },
             onDismiss = { showCreatePostDialog = false }
+        )
+    }
+
+    if (showGuestAccountSheet) {
+        GuestAccountBottomSheet(
+            user = user,
+            repository = repository,
+            onDismiss = { showGuestAccountSheet = false },
+            onSuccess = { onShowSnackbar(it) }
         )
     }
 

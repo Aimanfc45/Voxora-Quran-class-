@@ -135,6 +135,7 @@ data class VerseNote(
 
 data class QuranSettings(
     val arabicFontSizeSp: Float = 26f,
+    val arabicFontStyle: String = "Uthmani (Madinah)", // "Uthmani (Madinah)", "Indopak Script", "Amiri Modern"
     val lineSpacing: QuranLineSpacing = QuranLineSpacing.NORMAL,
     val readingMode: ReadingDisplayMode = ReadingDisplayMode.ARABIC_EN,
     val showTranslation: Boolean = true,
@@ -143,9 +144,12 @@ data class QuranSettings(
     val showMalayTranslation: Boolean = false,
     val showWordByWord: Boolean = false,
     val showTajwidColors: Boolean = true,
-    val translationLanguage: String = "English", // "English", "Bahasa Melayu", "Arabic"
+    val translationLanguage: String = "English", // "English", "Bahasa Melayu", "Arabic", "Dual (EN + BM)"
     val reciterName: String = "Mishary Rashid Alafasy",
     val selectedReciter: String = "Mishary Rashid Alafasy",
+    val defaultPlaybackSpeed: Float = 1.0f,
+    val autoPlayNextAyah: Boolean = true,
+    val defaultRepeatMode: AudioRepeatMode = AudioRepeatMode.OFF,
     val autoScrollAudio: Boolean = true,
     val favoriteReciters: Set<String> = setOf("Mishary Rashid Alafasy", "Abdul Rahman Al-Sudais")
 )

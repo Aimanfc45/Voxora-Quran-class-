@@ -1052,6 +1052,11 @@ class VoxoraRepository(
         _notifications.update { listOf(newNotif) + it }
     }
 
+    // ----------------------------------------------------
+    // Update System & App Manager
+    // ----------------------------------------------------
+    val updateManager: com.example.data.update.VoxoraUpdateManager = com.example.data.update.VoxoraUpdateManager()
+
     // ====================================================
     // SETTINGS ACTIONS
     // ====================================================
@@ -1080,8 +1085,26 @@ class VoxoraRepository(
         _quranSettings.update { it.copy(arabicFontSizeSp = size) }
     }
 
+    fun updateArabicFontStyle(style: String) {
+        _quranSettings.update { it.copy(arabicFontStyle = style) }
+    }
+
     fun toggleEnglishTranslation(show: Boolean) {
         _quranSettings.update { it.copy(showTranslation = show, showEnglishTranslation = show) }
+    }
+
+    fun updateDefaultPlaybackSpeed(speed: Float) {
+        _quranSettings.update { it.copy(defaultPlaybackSpeed = speed) }
+        audioEngine.setPlaybackSpeed(speed)
+    }
+
+    fun updateAutoPlayNextAyah(enabled: Boolean) {
+        _quranSettings.update { it.copy(autoPlayNextAyah = enabled) }
+    }
+
+    fun updateDefaultRepeatMode(mode: AudioRepeatMode) {
+        _quranSettings.update { it.copy(defaultRepeatMode = mode) }
+        audioEngine.setRepeatMode(mode)
     }
 
     fun updateSelectedReciter(reciter: String) {
@@ -1089,18 +1112,29 @@ class VoxoraRepository(
         audioEngine.setReciter(reciter)
     }
 
-    fun updateUserProfile(name: String, bio: String, country: String, level: String = "") {
+    fun updateUserProfile(
+        name: String,
+        bio: String,
+        country: String,
+        level: String = "",
+        username: String = "",
+        avatarEmoji: String = ""
+    ) {
         _userProfile.update {
             it.copy(
                 name = name.trim().ifBlank { it.name },
                 bio = bio.trim(),
                 country = country.trim().ifBlank { it.country },
-                learningLevel = if (level.isNotBlank()) level else it.learningLevel
+                learningLevel = if (level.isNotBlank()) level else it.learningLevel,
+                username = if (username.isNotBlank()) {
+                    if (username.startsWith("@")) username.trim() else "@${username.trim()}"
+                } else it.username,
+                avatarEmoji = if (avatarEmoji.isNotBlank()) avatarEmoji else it.avatarEmoji
             )
         }
     }
 
     fun updateProfile(name: String, bio: String, country: String) {
-        updateUserProfile(name, bio, country)
+        updateUserProfile(name = name, bio = bio, country = country)
     }
 }
