@@ -20,11 +20,11 @@ import java.io.File
  * Single source of truth for Voxora Application Versioning.
  */
 object AppVersion {
-    const val VERSION_NAME = "1.2.0"
-    const val VERSION_CODE = 3
-    const val PHASE = "Phase 1 — Major Update 3"
-    const val BUILD_DATE = "August 2026"
-    const val CODENAME = "Voxora Tajwid & Audio Suite"
+    const val VERSION_NAME = "1.4.0"
+    const val VERSION_CODE = 4
+    const val PHASE = "Phase 2 — Update 1.4"
+    const val BUILD_DATE = "September 2026"
+    const val CODENAME = "Voxora Real Data & Prayer Times Suite"
 }
 
 data class UpdateInfo(
@@ -67,22 +67,22 @@ class DefaultUpdateChecker : IUpdateChecker {
     override suspend fun checkForUpdates(currentVersionCode: Int): UpdateInfo? {
         // Simulated network check with latest remote manifest
         delay(600)
-        val latestRemoteCode = 3 // Current up to date version
+        val latestRemoteCode = 4 // Current up to date version
         if (latestRemoteCode > currentVersionCode) {
             return UpdateInfo(
-                versionName = "1.2.0",
-                versionCode = 3,
-                releaseDate = "August 2026",
+                versionName = "1.4.0",
+                versionCode = 4,
+                releaseDate = "September 2026",
                 isCritical = false,
                 releaseNotes = listOf(
-                    "✨ Redesigned Profile & Account experience with modern Islamic aesthetics",
-                    "👤 Complete Guest Mode with seamless cloud synchronization alerts",
-                    "🎙️ 10 Verified High-Fidelity Qaris with smooth Ayah playback",
-                    "⚙️ Granular Quran & Audio reading preferences and font customizers",
-                    "🔄 Resilient Update System Architecture and performance optimizations"
+                    "✨ Real-time Malaysian JAKIM Prayer Times & Live Countdown Clock",
+                    "🕌 GPS Auto-Detection & All 60+ Malaysian Prayer Zones Catalog",
+                    "🎙️ Robust Qari Audio Engine with ID-based folder resolution",
+                    "⚙️ Modernized Profile & Settings with granular preferences",
+                    "🚀 APK Release v1.4.0 with optimized memory & performance"
                 ),
-                downloadUrl = "https://voxora.app/download/voxora-v1.2.0.apk",
-                packageSizeMb = 18.4
+                downloadUrl = "https://voxora.app/download/voxora-v1.4.0.apk",
+                packageSizeMb = 18.9
             )
         }
         return null

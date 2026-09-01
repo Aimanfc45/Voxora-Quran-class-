@@ -56,7 +56,7 @@ fun PrayerTimesScheduleDialog(
         val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
         val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (fineGranted || coarseGranted) {
-            prayerTimesRepository.setAutoLocation(3.1390, 101.6869, "Auto Location (GPS)")
+            prayerTimesRepository.detectCurrentGpsLocation()
         }
     }
 
@@ -265,9 +265,10 @@ fun PrayerTimesScheduleDialog(
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(if (selectedLocation.isAutoLocation) Emerald100 else Color.Transparent)
                                 .clickable {
-                                    val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                                    val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                                            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
                                     if (fine) {
-                                        prayerTimesRepository.setAutoLocation(3.1390, 101.6869, "Auto Location (GPS)")
+                                        prayerTimesRepository.detectCurrentGpsLocation()
                                         showZoneSelector = false
                                     } else {
                                         showLocationPermissionRationale = true

@@ -22,9 +22,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import com.example.R
 import com.example.data.model.QuranClass
 import com.example.data.model.Teacher
+import com.example.data.repository.PrayerTimesRepository
 import com.example.data.repository.VoxoraRepository
 import com.example.ui.components.QuranAudioDetailBottomSheet
 import com.example.ui.components.QuranMiniAudioPlayer
@@ -61,6 +63,9 @@ enum class SubScreen {
 fun VoxoraApp(
     repository: VoxoraRepository = remember { VoxoraRepository() }
 ) {
+    val context = LocalContext.current
+    val prayerTimesRepository = remember { PrayerTimesRepository(context = context.applicationContext) }
+
     val hasCompletedOnboarding by repository.hasCompletedOnboarding.collectAsState()
     var currentDestination by remember { mutableStateOf(MainDestination.HOME) }
     var currentSubScreen by remember { mutableStateOf(SubScreen.NONE) }
@@ -295,6 +300,7 @@ fun VoxoraApp(
                             MainDestination.HOME -> {
                                 HomeScreen(
                                     repository = repository,
+                                    prayerTimesRepository = prayerTimesRepository,
                                     onNavigateToQuran = {
                                         currentDestination = MainDestination.QURAN
                                     },

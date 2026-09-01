@@ -1,13 +1,16 @@
 package com.example.data.repository
 
 import android.content.Context
-import android.location.Location
 import android.util.Log
 import com.example.data.model.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.TimeUnit
 import kotlin.math.*
 
 /**
@@ -15,10 +18,10 @@ import kotlin.math.*
  *
  * Implements:
  * 1. Live automatic device clock with 1-second ticks.
- * 2. Accurate astronomical & JAKIM-compatible solar prayer times calculations.
- * 3. Dynamic countdown to next prayer.
- * 4. Malaysian zone selection (e.g. WLY01 Kuala Lumpur, SGR01 Shah Alam) + GPS auto-location.
- * 5. Clean extensible interface for future official API integrations.
+ * 2. Real JAKIM / eSolat API network fetching with offline fallback to precise astronomical formulas.
+ * 3. Dynamic countdown to next prayer with active progress fraction.
+ * 4. Complete 60+ Malaysian zone catalog + GPS auto-location detection.
+ * 5. Instant manual zone switching and caching.
  */
 class PrayerTimesRepository(
     private val context: Context? = null,
@@ -26,7 +29,15 @@ class PrayerTimesRepository(
 ) {
     private val tag = "PrayerTimesRepository"
 
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(6, TimeUnit.SECONDS)
+        .readTimeout(6, TimeUnit.SECONDS)
+        .build()
+
     private var lastRefreshTimestamp: Long = System.currentTimeMillis()
+
+    // Location Repository helper
+    val locationHelper: LocationRepository? = context?.let { LocationRepository(it) }
 
     // Selected Location state
     private val _selectedLocation = MutableStateFlow(
@@ -41,6 +52,13 @@ class PrayerTimesRepository(
     )
     val selectedLocation: StateFlow<PrayerLocation> = _selectedLocation.asStateFlow()
 
+    // Refreshing state
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    // In-memory cache for online API schedules keyed by zoneCode
+    private val onlineCache = mutableMapOf<String, PrayerSchedule>()
+
     // Real-time ticking Clock & Countdown State
     private val _prayerState = MutableStateFlow(computeCurrentPrayerState(_selectedLocation.value))
     val prayerState: StateFlow<PrayerCountdownState> = _prayerState.asStateFlow()
@@ -53,6 +71,8 @@ class PrayerTimesRepository(
 
     init {
         startLiveClockTicker()
+        // Trigger initial background fetch for online JAKIM data
+        refreshPrayerTimes()
     }
 
     private fun startLiveClockTicker() {
@@ -82,8 +102,7 @@ class PrayerTimesRepository(
         )
         lastRefreshTimestamp = System.currentTimeMillis()
         _selectedLocation.value = newLoc
-        _prayerState.value = computeCurrentPrayerState(newLoc)
-        _dailySchedule.value = _prayerState.value.schedule
+        refreshPrayerTimes()
     }
 
     fun setAutoLocation(lat: Double, lon: Double, detectedCity: String? = null) {
@@ -99,12 +118,39 @@ class PrayerTimesRepository(
         )
         lastRefreshTimestamp = System.currentTimeMillis()
         _selectedLocation.value = newLoc
-        _prayerState.value = computeCurrentPrayerState(newLoc)
-        _dailySchedule.value = _prayerState.value.schedule
+        refreshPrayerTimes()
+    }
+
+    fun detectCurrentGpsLocation(onResult: ((Boolean, String) -> Unit)? = null) {
+        scope.launch {
+            _isRefreshing.value = true
+            try {
+                val locHelper = locationHelper ?: (context?.let { LocationRepository(it) })
+                if (locHelper == null) {
+                    onResult?.invoke(false, "Location service not available")
+                    _isRefreshing.value = false
+                    return@launch
+                }
+
+                val coords = locHelper.getDeviceCoordinates()
+                if (coords != null) {
+                    val nearest = locHelper.findClosestZone(coords.first, coords.second)
+                    setAutoLocation(coords.first, coords.second, "${nearest.description} (${nearest.code})")
+                    onResult?.invoke(true, "Detected location: ${nearest.state} (${nearest.code})")
+                } else {
+                    onResult?.invoke(false, "GPS signal not available, using default zone")
+                }
+            } catch (e: Exception) {
+                onResult?.invoke(false, "Failed to detect location: ${e.localizedMessage}")
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
     }
 
     fun findClosestZone(lat: Double, lng: Double): MalaysianZone {
-        return MalaysianZonesCatalog.zones.minByOrNull { zone ->
+        val helper = locationHelper
+        return helper?.findClosestZone(lat, lng) ?: MalaysianZonesCatalog.zones.minByOrNull { zone ->
             val dLat = zone.latitude - lat
             val dLng = zone.longitude - lng
             dLat * dLat + dLng * dLng
@@ -112,10 +158,114 @@ class PrayerTimesRepository(
     }
 
     fun refreshPrayerTimes() {
-        lastRefreshTimestamp = System.currentTimeMillis()
-        val updatedState = computeCurrentPrayerState(_selectedLocation.value)
-        _prayerState.value = updatedState
-        _dailySchedule.value = updatedState.schedule
+        scope.launch {
+            _isRefreshing.value = true
+            try {
+                val loc = _selectedLocation.value
+                val fetchedOnline = fetchOnlineJakimTimes(loc)
+                if (fetchedOnline != null) {
+                    onlineCache[loc.zoneCode] = fetchedOnline
+                }
+                lastRefreshTimestamp = System.currentTimeMillis()
+                val updatedState = computeCurrentPrayerState(_selectedLocation.value)
+                _prayerState.value = updatedState
+                _dailySchedule.value = updatedState.schedule
+            } catch (e: Exception) {
+                Log.e(tag, "Refresh error: ${e.message}")
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
+    }
+
+    private suspend fun fetchOnlineJakimTimes(location: PrayerLocation): PrayerSchedule? = withContext(Dispatchers.IO) {
+        val zone = location.zoneCode
+        // 1. Try official Malaysian Waktu Solat open endpoint
+        try {
+            val url = "https://api.waktusolat.app/v2/solat/$zone"
+            val request = Request.Builder().url(url).build()
+            val response = httpClient.newCall(request).execute()
+            if (response.isSuccessful) {
+                val body = response.body?.string()
+                if (!body.isNullOrBlank()) {
+                    val root = JSONObject(body)
+                    val prayersArray = root.optJSONArray("prayers")
+                    if (prayersArray != null && prayersArray.length() > 0) {
+                        val todayObj = prayersArray.getJSONObject(0)
+                        val hijri = todayObj.optString("hijri", estimateHijriDate(Calendar.getInstance()))
+                        val fajrStr = formatEpochOrTimeString(todayObj.opt("fajr"))
+                        val syurukStr = formatEpochOrTimeString(todayObj.opt("syuruk"))
+                        val dhuhrStr = formatEpochOrTimeString(todayObj.opt("dhuhr"))
+                        val asrStr = formatEpochOrTimeString(todayObj.opt("asr"))
+                        val maghribStr = formatEpochOrTimeString(todayObj.opt("maghrib"))
+                        val ishaStr = formatEpochOrTimeString(todayObj.opt("isha"))
+
+                        val slots = listOf(
+                            parseSlotFromTimeString(PrayerName.FAJR, fajrStr),
+                            parseSlotFromTimeString(PrayerName.SUNRISE, syurukStr),
+                            parseSlotFromTimeString(PrayerName.DHUHR, dhuhrStr),
+                            parseSlotFromTimeString(PrayerName.ASR, asrStr),
+                            parseSlotFromTimeString(PrayerName.MAGHRIB, maghribStr),
+                            parseSlotFromTimeString(PrayerName.ISHA, ishaStr)
+                        )
+
+                        val cal = Calendar.getInstance()
+                        val dateDisplay = SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault()).format(cal.time)
+                        val lastUpdateStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+
+                        return@withContext PrayerSchedule(
+                            dateFormatted = dateDisplay,
+                            hijriFormatted = hijri,
+                            locationName = location.name,
+                            zoneCode = location.zoneCode,
+                            slots = slots,
+                            lastUpdatedFormatted = "Updated: $lastUpdateStr (JAKIM Live)",
+                            isUsingCachedData = false,
+                            isUnavailable = false
+                        )
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Fall through to fallback
+        }
+        return@withContext null
+    }
+
+    private fun formatEpochOrTimeString(value: Any?): String {
+        if (value == null) return "00:00"
+        if (value is Number) {
+            val epochSec = value.toLong()
+            val date = Date(epochSec * 1000L)
+            val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+            sdf.timeZone = TimeZone.getTimeZone("Asia/Kuala_Lumpur")
+            return sdf.format(date)
+        }
+        val str = value.toString().trim()
+        return if (str.length >= 5) str.substring(0, 5) else str
+    }
+
+    private fun parseSlotFromTimeString(prayer: PrayerName, timeStr: String): PrayerSlot {
+        val parts = timeStr.split(":")
+        val hour24 = parts.getOrNull(0)?.toIntOrNull() ?: 12
+        val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+
+        val hour12 = when {
+            hour24 == 0 -> 12
+            hour24 > 12 -> hour24 - 12
+            else -> hour24
+        }
+        val amPm = if (hour24 >= 12) "PM" else "AM"
+        val time12 = String.format(Locale.getDefault(), "%02d:%02d %s", hour12, minute, amPm)
+        val time24 = String.format(Locale.getDefault(), "%02d:%02d", hour24, minute)
+
+        return PrayerSlot(
+            name = prayer,
+            time24 = time24,
+            time12 = time12,
+            hour = hour24,
+            minute = minute
+        )
     }
 
     /**
@@ -124,7 +274,7 @@ class PrayerTimesRepository(
      */
     private fun computeCurrentPrayerState(location: PrayerLocation): PrayerCountdownState {
         val nowCal = Calendar.getInstance()
-        val schedule = calculatePrayerTimesForDate(nowCal, location)
+        val schedule = onlineCache[location.zoneCode] ?: calculatePrayerTimesForDate(nowCal, location)
 
         val timeFormatter = SimpleDateFormat("hh:mm:ss a", Locale.getDefault())
         val dateFormatter = SimpleDateFormat("EEEE, d MMMM", Locale.getDefault())
@@ -211,7 +361,7 @@ class PrayerTimesRepository(
      */
     private fun calculatePrayerTimesForDate(cal: Calendar, location: PrayerLocation): PrayerSchedule {
         val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
-        val timeZoneOffsetHours = (cal.timeZone.rawOffset + cal.timeZone.dstSavings) / 3600000.0
+        val timeZoneOffsetHours = 8.0 // Malaysia Standard Time (UTC+8)
 
         val lat = location.latitude
         val lng = location.longitude
@@ -274,7 +424,7 @@ class PrayerTimesRepository(
             locationName = location.name,
             zoneCode = location.zoneCode,
             slots = listOf(fajrSlot, sunriseSlot, dhuhrSlot, asrSlot, maghribSlot, ishaSlot),
-            lastUpdatedFormatted = "Last updated: $lastUpdateStr",
+            lastUpdatedFormatted = "Calculated: $lastUpdateStr (JAKIM Standard)",
             isUsingCachedData = true,
             isUnavailable = false
         )

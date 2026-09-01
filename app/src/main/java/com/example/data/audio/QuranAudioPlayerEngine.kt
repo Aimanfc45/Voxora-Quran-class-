@@ -85,20 +85,55 @@ class QuranAudioPlayerEngine(
         }
     }
 
-    fun getReciterFolder(reciterName: String): String {
+    fun getReciterFolder(reciterKeyOrName: String): String {
+        val trimmed = reciterKeyOrName.trim()
+        
+        // 1. Direct match by reciter ID, audioFolder, or official display name from catalog
+        val foundInCatalog = com.example.data.mock.MockQuranData.reciterList.find {
+            it.id.equals(trimmed, ignoreCase = true) ||
+            it.audioFolder.equals(trimmed, ignoreCase = true) ||
+            it.name.equals(trimmed, ignoreCase = true)
+        }
+        if (foundInCatalog != null) {
+            return foundInCatalog.audioFolder
+        }
+
+        // 2. Exact known audio folder names check
+        val knownFolders = listOf(
+            "Abdurrahmaan_As-Sudais_192kbps",
+            "Abdullaah_3awwaad_Al-Juhaynee_128kbps",
+            "Alafasy_128kbps",
+            "Abdul_Basit_Murattal_192kbps",
+            "Husary_128kbps",
+            "Minshawy_Murattal_128kbps",
+            "Ghamadi_40kbps",
+            "Maher_AlMuaiqly_64kbps",
+            "Yasser_Ad-Dussary_128kbps",
+            "Saood_ash-Shuraym_128kbps",
+            "Abu_Bakr_Ash-Shaatree_128kbps",
+            "Nasser_Alqatami_128kbps",
+            "Ali_Jaber_64kbps"
+        )
+        val matchedFolder = knownFolders.find { it.equals(trimmed, ignoreCase = true) }
+        if (matchedFolder != null) {
+            return matchedFolder
+        }
+
+        // 3. Fallback name keyword checks with clear precedence
         return when {
-            reciterName.contains("Sudais", ignoreCase = true) -> "Abdurrahmaan_As-Sudais_192kbps"
-            reciterName.contains("Juhan", ignoreCase = true) -> "Abdullaah_3awwaad_Al-Juhaynee_128kbps"
-            reciterName.contains("Abdul Basit", ignoreCase = true) -> "Abdul_Basit_Murattal_192kbps"
-            reciterName.contains("Husary", ignoreCase = true) || reciterName.contains("Hussary", ignoreCase = true) -> "Husary_128kbps"
-            reciterName.contains("Minshawi", ignoreCase = true) || reciterName.contains("Minshawy", ignoreCase = true) -> "Minshawy_Murattal_128kbps"
-            reciterName.contains("Ghamdi", ignoreCase = true) || reciterName.contains("Ghamadi", ignoreCase = true) -> "Ghamadi_40kbps"
-            reciterName.contains("Muaiqly", ignoreCase = true) -> "Maher_AlMuaiqly_64kbps"
-            reciterName.contains("Dosari", ignoreCase = true) || reciterName.contains("Dussary", ignoreCase = true) -> "Yasser_Ad-Dussary_128kbps"
-            reciterName.contains("Qatami", ignoreCase = true) -> "Nasser_Alqatami_128kbps"
-            reciterName.contains("Shuraim", ignoreCase = true) || reciterName.contains("Shuraym", ignoreCase = true) -> "Saood_ash-Shuraym_128kbps"
-            reciterName.contains("Shatri", ignoreCase = true) || reciterName.contains("Shaatree", ignoreCase = true) -> "Abu_Bakr_Ash-Shaatree_128kbps"
-            reciterName.contains("Ali Jaber", ignoreCase = true) -> "Ali_Jaber_64kbps"
+            trimmed.contains("Sudais", ignoreCase = true) -> "Abdurrahmaan_As-Sudais_192kbps"
+            trimmed.contains("Juhan", ignoreCase = true) -> "Abdullaah_3awwaad_Al-Juhaynee_128kbps"
+            trimmed.contains("Abdul Basit", ignoreCase = true) || trimmed.contains("Abdus-Samad", ignoreCase = true) -> "Abdul_Basit_Murattal_192kbps"
+            trimmed.contains("Husary", ignoreCase = true) || trimmed.contains("Hussary", ignoreCase = true) -> "Husary_128kbps"
+            trimmed.contains("Minshawi", ignoreCase = true) || trimmed.contains("Minshawy", ignoreCase = true) -> "Minshawy_Murattal_128kbps"
+            trimmed.contains("Ghamdi", ignoreCase = true) || trimmed.contains("Ghamadi", ignoreCase = true) -> "Ghamadi_40kbps"
+            trimmed.contains("Muaiqly", ignoreCase = true) -> "Maher_AlMuaiqly_64kbps"
+            trimmed.contains("Dosari", ignoreCase = true) || trimmed.contains("Dussary", ignoreCase = true) -> "Yasser_Ad-Dussary_128kbps"
+            trimmed.contains("Qatami", ignoreCase = true) -> "Nasser_Alqatami_128kbps"
+            trimmed.contains("Shuraim", ignoreCase = true) || trimmed.contains("Shuraym", ignoreCase = true) -> "Saood_ash-Shuraym_128kbps"
+            trimmed.contains("Shatri", ignoreCase = true) || trimmed.contains("Shaatree", ignoreCase = true) -> "Abu_Bakr_Ash-Shaatree_128kbps"
+            trimmed.contains("Ali Jaber", ignoreCase = true) -> "Ali_Jaber_64kbps"
+            trimmed.contains("Alafasy", ignoreCase = true) || trimmed.contains("Mishary", ignoreCase = true) -> "Alafasy_128kbps"
             else -> "Alafasy_128kbps" // Default: Sheikh Mishary Rashid Alafasy
         }
     }
