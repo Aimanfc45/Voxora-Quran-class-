@@ -40,11 +40,6 @@ data class PostComment(
     val isTeacher: Boolean = false
 )
 
-enum class AuthMode {
-    AUTHENTICATED,
-    GUEST
-}
-
 data class UserProfile(
     val name: String = "Ahmed Al-Farsi",
     val username: String = "@ahmed_alfarsi",

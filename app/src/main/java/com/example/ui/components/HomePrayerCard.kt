@@ -23,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.PrayerCountdownState
-import com.example.data.model.PrayerName
 import com.example.data.model.PrayerSlot
 import com.example.ui.theme.*
 
@@ -57,11 +56,11 @@ fun HomePrayerCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .background(Emerald800),
                         contentAlignment = Alignment.Center
                     ) {
@@ -74,16 +73,33 @@ fun HomePrayerCard(
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "PRAYER TIMES",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    letterSpacing = 1.2.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = Emerald800
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Emerald100
+                            ) {
+                                Text(
+                                    text = prayerState.schedule.zoneCode,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = Emerald900,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
                         Text(
-                            text = "PRAYER TIMES",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                letterSpacing = 1.2.sp,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            color = Emerald800
-                        )
-                        Text(
-                            text = "${prayerState.schedule.zoneCode} • ${prayerState.schedule.locationName}",
+                            text = "📍 ${prayerState.schedule.locationName}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
@@ -91,19 +107,20 @@ fun HomePrayerCard(
                     }
                 }
 
-                // Live ticking digital clock badge & cached badge
+                // Live ticking digital clock badge
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = Emerald50,
-                    border = BorderStroke(1.dp, Emerald200)
+                    border = BorderStroke(1.dp, Emerald200),
+                    modifier = Modifier.testTag("home_live_clock_badge")
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(6.dp)
+                                .size(7.dp)
                                 .clip(CircleShape)
                                 .background(Emerald600)
                         )
@@ -120,33 +137,33 @@ fun HomePrayerCard(
                 }
             }
 
-            // Small cache status / last updated subtitle
+            // Subtitle: Date & Hijri
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp),
+                    .padding(top = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "JAKIM Standard • ${prayerState.schedule.lastUpdatedFormatted}",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    text = "${prayerState.currentDayFormatted}, ${prayerState.currentDateFormatted}",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = prayerState.schedule.hijriFormatted,
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
                     color = Emerald700
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Highlight Container: Current Prayer & Next Prayer Countdown
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(20.dp))
                     .background(
                         Brush.linearGradient(
                             colors = listOf(Emerald900, Emerald950)
@@ -194,7 +211,8 @@ fun HomePrayerCard(
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = GoldPrimary.copy(alpha = 0.22f),
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                            modifier = Modifier.testTag("home_prayer_countdown_badge")
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -239,13 +257,13 @@ fun HomePrayerCard(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = prayerState.currentPrayer?.let { "Current: ${it.englishName} (${it.time12})" } ?: "Night Time",
+                            text = prayerState.currentPrayer?.let { "Current: ${it.englishName} (${it.time12})" } ?: "Waiting for next prayer",
                             style = MaterialTheme.typography.bodySmall,
                             color = Emerald300
                         )
                         Text(
-                            text = prayerState.currentDateFormatted,
-                            style = MaterialTheme.typography.bodySmall,
+                            text = if (prayerState.isUsingCachedData) "Using cached times" else "JAKIM Verified",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                             color = Color.White.copy(alpha = 0.7f)
                         )
                     }
@@ -269,7 +287,7 @@ fun HomePrayerCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Action Buttons
+            // Action Buttons: "View All Prayer Times" & "Open Salah Mode"
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -293,7 +311,7 @@ fun HomePrayerCard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "All Times",
+                        text = "View All Times",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
                     )
                 }

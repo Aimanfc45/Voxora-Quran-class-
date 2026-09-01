@@ -17,15 +17,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
 import com.example.R
-import com.example.data.model.QuranClass
+import com.example.data.model.AuthMode
 import com.example.data.model.Teacher
+import com.example.data.repository.AuthRepository
 import com.example.data.repository.PrayerTimesRepository
 import com.example.data.repository.VoxoraRepository
 import com.example.ui.components.QuranAudioDetailBottomSheet
@@ -59,14 +60,22 @@ enum class SubScreen {
     ONBOARDING
 }
 
+enum class AppFlowState {
+    SPLASH,
+    ONBOARDING,
+    AUTH,
+    MAIN
+}
+
 @Composable
 fun VoxoraApp(
     repository: VoxoraRepository = remember { VoxoraRepository() }
 ) {
     val context = LocalContext.current
+    val authRepository = remember { AuthRepository(context = context.applicationContext) }
     val prayerTimesRepository = remember { PrayerTimesRepository(context = context.applicationContext) }
 
-    val hasCompletedOnboarding by repository.hasCompletedOnboarding.collectAsState()
+    var appFlowState by remember { mutableStateOf(AppFlowState.SPLASH) }
     var currentDestination by remember { mutableStateOf(MainDestination.HOME) }
     var currentSubScreen by remember { mutableStateOf(SubScreen.NONE) }
     var selectedTeacherForDiscovery by remember { mutableStateOf<Teacher?>(null) }
@@ -91,21 +100,63 @@ fun VoxoraApp(
     val configuration = LocalConfiguration.current
     val isWideScreen = configuration.screenWidthDp >= 720
 
-    // First Launch Onboarding Flow
-    if (!hasCompletedOnboarding) {
-        OnboardingScreen(
-            onFinishOnboarding = { goToAuth ->
-                repository.completeOnboarding()
-                if (goToAuth) {
-                    currentSubScreen = SubScreen.AUTH_SCREEN
+    // 1. Splash Screen Phase
+    if (appFlowState == AppFlowState.SPLASH) {
+        SplashScreen(
+            onSplashFinished = {
+                val onboardingDone = authRepository.isOnboardingCompleted()
+                if (!onboardingDone) {
+                    appFlowState = AppFlowState.ONBOARDING
+                } else if (authRepository.authMode.value == AuthMode.UNAUTHENTICATED) {
+                    appFlowState = AppFlowState.AUTH
                 } else {
-                    currentSubScreen = SubScreen.NONE
+                    val savedUser = authRepository.currentUser.value
+                    if (savedUser != null && !savedUser.isGuest) {
+                        repository.authenticateUser(savedUser.email, "")
+                    } else {
+                        repository.continueAsGuestUser()
+                    }
+                    appFlowState = AppFlowState.MAIN
                 }
             }
         )
         return
     }
 
+    // 2. First-Launch 5-Screen Onboarding Flow
+    if (appFlowState == AppFlowState.ONBOARDING) {
+        OnboardingScreen(
+            onFinishOnboarding = { goToAuth ->
+                authRepository.setOnboardingCompleted(true)
+                repository.completeOnboarding()
+                if (goToAuth) {
+                    appFlowState = AppFlowState.AUTH
+                } else {
+                    appFlowState = AppFlowState.MAIN
+                }
+            }
+        )
+        return
+    }
+
+    // 3. Welcome / Authentication Entry Flow
+    if (appFlowState == AppFlowState.AUTH) {
+        AuthScreen(
+            repository = repository,
+            authRepository = authRepository,
+            onAuthSuccess = {
+                appFlowState = AppFlowState.MAIN
+                currentSubScreen = SubScreen.NONE
+            },
+            onBack = if (authRepository.isOnboardingCompleted()) {
+                { appFlowState = AppFlowState.MAIN }
+            } else null,
+            onShowSnackbar = showSnackbar
+        )
+        return
+    }
+
+    // 4. Main Application
     val isFullScreenSubScreen = currentSubScreen == SubScreen.LIVE_CLASS || 
                                 currentSubScreen == SubScreen.AUTH_SCREEN || 
                                 currentSubScreen == SubScreen.ONBOARDING
@@ -254,13 +305,18 @@ fun VoxoraApp(
                     SubScreen.ONBOARDING -> {
                         OnboardingScreen(
                             onFinishOnboarding = { goToAuth ->
-                                currentSubScreen = if (goToAuth) SubScreen.AUTH_SCREEN else SubScreen.NONE
+                                if (goToAuth) {
+                                    currentSubScreen = SubScreen.AUTH_SCREEN
+                                } else {
+                                    currentSubScreen = SubScreen.NONE
+                                }
                             }
                         )
                     }
                     SubScreen.AUTH_SCREEN -> {
                         AuthScreen(
                             repository = repository,
+                            authRepository = authRepository,
                             onAuthSuccess = { currentSubScreen = SubScreen.NONE },
                             onBack = { currentSubScreen = SubScreen.NONE },
                             onShowSnackbar = showSnackbar
@@ -268,6 +324,7 @@ fun VoxoraApp(
                     }
                     SubScreen.SALAH_MODE -> {
                         SalahModeScreen(
+                            prayerTimesRepository = prayerTimesRepository,
                             onBack = { currentSubScreen = SubScreen.NONE },
                             onShowSnackbar = showSnackbar
                         )

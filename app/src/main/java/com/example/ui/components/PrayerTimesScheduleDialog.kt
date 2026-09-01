@@ -67,12 +67,12 @@ fun PrayerTimesScheduleDialog(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(imageVector = Icons.Default.LocationOn, contentDescription = null, tint = Emerald800)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Enable Location", fontWeight = FontWeight.Bold)
+                    Text("Location Permission", fontWeight = FontWeight.Bold)
                 }
             },
             text = {
                 Text(
-                    text = "Allow location access to get accurate prayer times for your current area.",
+                    text = "Location permission is needed to automatically determine your prayer zone.",
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -89,7 +89,7 @@ fun PrayerTimesScheduleDialog(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Emerald800)
                 ) {
-                    Text("Allow Location")
+                    Text("Try Again")
                 }
             },
             dismissButton = {

@@ -1,8 +1,10 @@
 package com.example.data.repository
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import com.example.data.model.*
+import com.example.util.QiblahHelper
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import okhttp3.OkHttpClient
@@ -18,16 +20,18 @@ import kotlin.math.*
  *
  * Implements:
  * 1. Live automatic device clock with 1-second ticks.
- * 2. Real JAKIM / eSolat API network fetching with offline fallback to precise astronomical formulas.
+ * 2. Real JAKIM / e-Solat API network fetching with offline fallback to precise astronomical formulas.
  * 3. Dynamic countdown to next prayer with active progress fraction.
  * 4. Complete 60+ Malaysian zone catalog + GPS auto-location detection.
- * 5. Instant manual zone switching and caching.
+ * 5. Instant manual zone switching and caching with local persistence.
+ * 6. Qiblah calculation and Salah tracking persistence.
  */
 class PrayerTimesRepository(
     private val context: Context? = null,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 ) {
     private val tag = "PrayerTimesRepository"
+    private val prefs: SharedPreferences? = context?.getSharedPreferences("voxora_prayer_prefs", Context.MODE_PRIVATE)
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(6, TimeUnit.SECONDS)
@@ -39,17 +43,8 @@ class PrayerTimesRepository(
     // Location Repository helper
     val locationHelper: LocationRepository? = context?.let { LocationRepository(it) }
 
-    // Selected Location state
-    private val _selectedLocation = MutableStateFlow(
-        PrayerLocation(
-            name = "Kuala Lumpur & Putrajaya",
-            state = "Wilayah Persekutuan",
-            zoneCode = "WLY01",
-            latitude = 3.1390,
-            longitude = 101.6869,
-            isAutoLocation = false
-        )
-    )
+    // Selected Location state (Restored from preferences if available)
+    private val _selectedLocation = MutableStateFlow(loadSavedLocation())
     val selectedLocation: StateFlow<PrayerLocation> = _selectedLocation.asStateFlow()
 
     // Refreshing state
@@ -67,12 +62,147 @@ class PrayerTimesRepository(
     private val _dailySchedule = MutableStateFlow(calculatePrayerTimesForDate(Calendar.getInstance(), _selectedLocation.value))
     val dailySchedule: StateFlow<PrayerSchedule> = _dailySchedule.asStateFlow()
 
+    // Salah Intro Onboarding completed state
+    private val _isSalahOnboardingDone = MutableStateFlow(prefs?.getBoolean("salah_onboarding_completed", false) ?: false)
+    val isSalahOnboardingDone: StateFlow<Boolean> = _isSalahOnboardingDone.asStateFlow()
+
+    // Daily Salah Checklist state
+    private val _dailySalahProgress = MutableStateFlow(loadTodaySalahProgress())
+    val dailySalahProgress: StateFlow<DailySalahProgress> = _dailySalahProgress.asStateFlow()
+
+    // Salah Learning Progress state
+    private val _salahLearningProgress = MutableStateFlow(loadSalahLearningProgress())
+    val salahLearningProgress: StateFlow<SalahLearningProgress> = _salahLearningProgress.asStateFlow()
+
     private var tickerJob: Job? = null
 
     init {
         startLiveClockTicker()
         // Trigger initial background fetch for online JAKIM data
         refreshPrayerTimes()
+    }
+
+    private fun loadSavedLocation(): PrayerLocation {
+        if (prefs == null) {
+            return PrayerLocation(
+                name = "Kuala Lumpur & Putrajaya",
+                state = "Wilayah Persekutuan",
+                zoneCode = "WLY01",
+                latitude = 3.1390,
+                longitude = 101.6869,
+                isAutoLocation = false
+            )
+        }
+        val zoneCode = prefs.getString("zone_code", "WLY01") ?: "WLY01"
+        val name = prefs.getString("zone_name", "Kuala Lumpur & Putrajaya") ?: "Kuala Lumpur & Putrajaya"
+        val state = prefs.getString("zone_state", "Wilayah Persekutuan") ?: "Wilayah Persekutuan"
+        val lat = prefs.getFloat("zone_lat", 3.1390f).toDouble()
+        val lng = prefs.getFloat("zone_lng", 101.6869f).toDouble()
+        val isAuto = prefs.getBoolean("is_auto_location", false)
+
+        return PrayerLocation(
+            name = name,
+            state = state,
+            zoneCode = zoneCode,
+            latitude = lat,
+            longitude = lng,
+            isAutoLocation = isAuto
+        )
+    }
+
+    private fun saveLocation(location: PrayerLocation) {
+        prefs?.edit()?.apply {
+            putString("zone_code", location.zoneCode)
+            putString("zone_name", location.name)
+            putString("zone_state", location.state)
+            putFloat("zone_lat", location.latitude.toFloat())
+            putFloat("zone_lng", location.longitude.toFloat())
+            putBoolean("is_auto_location", location.isAutoLocation)
+            apply()
+        }
+    }
+
+    fun setSalahOnboardingCompleted(completed: Boolean = true) {
+        _isSalahOnboardingDone.value = completed
+        prefs?.edit()?.putBoolean("salah_onboarding_completed", completed)?.apply()
+    }
+
+    private fun getTodayDateKey(): String {
+        return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+    }
+
+    private fun loadTodaySalahProgress(): DailySalahProgress {
+        val todayKey = getTodayDateKey()
+        if (prefs == null) return DailySalahProgress(dateKey = todayKey)
+        val savedDate = prefs.getString("salah_date_key", "")
+        if (savedDate != todayKey) {
+            // New day, reset daily checklist
+            return DailySalahProgress(dateKey = todayKey)
+        }
+        return DailySalahProgress(
+            dateKey = todayKey,
+            fajrCompleted = prefs.getBoolean("salah_fajr", false),
+            dhuhrCompleted = prefs.getBoolean("salah_dhuhr", false),
+            asrCompleted = prefs.getBoolean("salah_asr", false),
+            maghribCompleted = prefs.getBoolean("salah_maghrib", false),
+            ishaCompleted = prefs.getBoolean("salah_isha", false)
+        )
+    }
+
+    fun toggleSalahCompleted(prayerName: PrayerName) {
+        val current = _dailySalahProgress.value
+        val todayKey = getTodayDateKey()
+        val updated = when (prayerName) {
+            PrayerName.FAJR -> current.copy(dateKey = todayKey, fajrCompleted = !current.fajrCompleted)
+            PrayerName.DHUHR -> current.copy(dateKey = todayKey, dhuhrCompleted = !current.dhuhrCompleted)
+            PrayerName.ASR -> current.copy(dateKey = todayKey, asrCompleted = !current.asrCompleted)
+            PrayerName.MAGHRIB -> current.copy(dateKey = todayKey, maghribCompleted = !current.maghribCompleted)
+            PrayerName.ISHA -> current.copy(dateKey = todayKey, ishaCompleted = !current.ishaCompleted)
+            else -> current
+        }
+        _dailySalahProgress.value = updated
+        prefs?.edit()?.apply {
+            putString("salah_date_key", todayKey)
+            putBoolean("salah_fajr", updated.fajrCompleted)
+            putBoolean("salah_dhuhr", updated.dhuhrCompleted)
+            putBoolean("salah_asr", updated.asrCompleted)
+            putBoolean("salah_maghrib", updated.maghribCompleted)
+            putBoolean("salah_isha", updated.ishaCompleted)
+            apply()
+        }
+    }
+
+    private fun loadSalahLearningProgress(): SalahLearningProgress {
+        val totalPracticed = prefs?.getInt("salah_practiced_count", 3) ?: 3
+        val lastPracticed = prefs?.getString("salah_last_practiced", "Fajr") ?: "Fajr"
+        val completedSteps = prefs?.getStringSet("salah_completed_steps", setOf("1", "2", "3", "4")) ?: setOf("1", "2", "3", "4")
+        return SalahLearningProgress(
+            completedStepIds = completedSteps.mapNotNull { it.toIntOrNull() }.toSet(),
+            totalSteps = 9,
+            completedPrayersCount = totalPracticed,
+            lastPracticedPrayer = lastPracticed
+        )
+    }
+
+    fun recordSalahStepLearned(stepId: Int) {
+        val current = _salahLearningProgress.value
+        val newSteps = current.completedStepIds + stepId
+        _salahLearningProgress.value = current.copy(completedStepIds = newSteps)
+        prefs?.edit()?.putStringSet("salah_completed_steps", newSteps.map { it.toString() }.toSet())?.apply()
+    }
+
+    fun recordSalahPracticeCompleted(prayerName: String) {
+        val current = _salahLearningProgress.value
+        val updated = current.copy(
+            completedPrayersCount = current.completedPrayersCount + 1,
+            lastPracticedPrayer = prayerName
+        )
+        _salahLearningProgress.value = updated
+        prefs?.edit()?.apply {
+            putInt("salah_practiced_count", updated.completedPrayersCount)
+            putString("salah_last_practiced", prayerName)
+            apply()
+        }
     }
 
     private fun startLiveClockTicker() {
@@ -100,310 +230,289 @@ class PrayerTimesRepository(
             longitude = zone.longitude,
             isAutoLocation = false
         )
-        lastRefreshTimestamp = System.currentTimeMillis()
         _selectedLocation.value = newLoc
+        saveLocation(newLoc)
         refreshPrayerTimes()
     }
 
-    fun setAutoLocation(lat: Double, lon: Double, detectedCity: String? = null) {
-        val nearestZone = findClosestZone(lat, lon)
-        val locationTitle = detectedCity ?: "${nearestZone.state} (${nearestZone.code})"
-        val newLoc = PrayerLocation(
-            name = locationTitle,
-            state = nearestZone.state,
-            zoneCode = nearestZone.code,
-            latitude = lat,
-            longitude = lon,
-            isAutoLocation = true
-        )
-        lastRefreshTimestamp = System.currentTimeMillis()
-        _selectedLocation.value = newLoc
-        refreshPrayerTimes()
-    }
-
-    fun detectCurrentGpsLocation(onResult: ((Boolean, String) -> Unit)? = null) {
+    fun detectCurrentGpsLocation() {
+        if (locationHelper == null) return
         scope.launch {
             _isRefreshing.value = true
             try {
-                val locHelper = locationHelper ?: (context?.let { LocationRepository(it) })
-                if (locHelper == null) {
-                    onResult?.invoke(false, "Location service not available")
-                    _isRefreshing.value = false
-                    return@launch
-                }
-
-                val coords = locHelper.getDeviceCoordinates()
+                val coords = locationHelper.getDeviceCoordinates()
                 if (coords != null) {
-                    val nearest = locHelper.findClosestZone(coords.first, coords.second)
-                    setAutoLocation(coords.first, coords.second, "${nearest.description} (${nearest.code})")
-                    onResult?.invoke(true, "Detected location: ${nearest.state} (${nearest.code})")
-                } else {
-                    onResult?.invoke(false, "GPS signal not available, using default zone")
+                    val (lat, lng) = coords
+                    val zone = locationHelper.findClosestZone(lat, lng)
+                    val newLoc = PrayerLocation(
+                        name = "GPS: ${zone.description}",
+                        state = zone.state,
+                        zoneCode = zone.code,
+                        latitude = lat,
+                        longitude = lng,
+                        isAutoLocation = true
+                    )
+                    _selectedLocation.value = newLoc
+                    saveLocation(newLoc)
+                    refreshPrayerTimes()
                 }
             } catch (e: Exception) {
-                onResult?.invoke(false, "Failed to detect location: ${e.localizedMessage}")
+                Log.w(tag, "Failed to get GPS location: ${e.message}")
             } finally {
                 _isRefreshing.value = false
             }
         }
-    }
-
-    fun findClosestZone(lat: Double, lng: Double): MalaysianZone {
-        val helper = locationHelper
-        return helper?.findClosestZone(lat, lng) ?: MalaysianZonesCatalog.zones.minByOrNull { zone ->
-            val dLat = zone.latitude - lat
-            val dLng = zone.longitude - lng
-            dLat * dLat + dLng * dLng
-        } ?: MalaysianZonesCatalog.zones[0]
     }
 
     fun refreshPrayerTimes() {
         scope.launch {
             _isRefreshing.value = true
-            try {
-                val loc = _selectedLocation.value
-                val fetchedOnline = fetchOnlineJakimTimes(loc)
-                if (fetchedOnline != null) {
-                    onlineCache[loc.zoneCode] = fetchedOnline
-                }
+            val loc = _selectedLocation.value
+            val onlineSchedule = fetchOnlineJakimSchedule(loc.zoneCode, loc.name)
+            if (onlineSchedule != null) {
+                onlineCache[loc.zoneCode] = onlineSchedule
                 lastRefreshTimestamp = System.currentTimeMillis()
-                val updatedState = computeCurrentPrayerState(_selectedLocation.value)
-                _prayerState.value = updatedState
-                _dailySchedule.value = updatedState.schedule
-            } catch (e: Exception) {
-                Log.e(tag, "Refresh error: ${e.message}")
-            } finally {
-                _isRefreshing.value = false
             }
+            _prayerState.value = computeCurrentPrayerState(_selectedLocation.value)
+            _dailySchedule.value = _prayerState.value.schedule
+            _isRefreshing.value = false
         }
     }
 
-    private suspend fun fetchOnlineJakimTimes(location: PrayerLocation): PrayerSchedule? = withContext(Dispatchers.IO) {
-        val zone = location.zoneCode
-        // 1. Try official Malaysian Waktu Solat open endpoint
+    /**
+     * Calculates Qiblah bearing in degrees from currently selected location.
+     */
+    fun getQiblahBearing(): Double {
+        val loc = _selectedLocation.value
+        return QiblahHelper.calculateQiblahBearing(loc.latitude, loc.longitude)
+    }
+
+    /**
+     * Calculates distance to Kaaba in km from currently selected location.
+     */
+    fun getDistanceToKaabaKm(): Double {
+        val loc = _selectedLocation.value
+        return QiblahHelper.calculateDistanceKm(loc.latitude, loc.longitude)
+    }
+
+    /**
+     * Fetches real prayer times from e-Solat / JAKIM open mirror API with fallback.
+     */
+    private suspend fun fetchOnlineJakimSchedule(zoneCode: String, locationName: String): PrayerSchedule? = withContext(Dispatchers.IO) {
         try {
-            val url = "https://api.waktusolat.app/v2/solat/$zone"
-            val request = Request.Builder().url(url).build()
+            val url = "https://api.waktusolat.app/v2/solat/$zoneCode"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "VoxoraQuran/1.5 (Android; Kotlin)")
+                .build()
+
             val response = httpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                val body = response.body?.string()
-                if (!body.isNullOrBlank()) {
-                    val root = JSONObject(body)
-                    val prayersArray = root.optJSONArray("prayers")
-                    if (prayersArray != null && prayersArray.length() > 0) {
-                        val todayObj = prayersArray.getJSONObject(0)
-                        val hijri = todayObj.optString("hijri", estimateHijriDate(Calendar.getInstance()))
-                        val fajrStr = formatEpochOrTimeString(todayObj.opt("fajr"))
-                        val syurukStr = formatEpochOrTimeString(todayObj.opt("syuruk"))
-                        val dhuhrStr = formatEpochOrTimeString(todayObj.opt("dhuhr"))
-                        val asrStr = formatEpochOrTimeString(todayObj.opt("asr"))
-                        val maghribStr = formatEpochOrTimeString(todayObj.opt("maghrib"))
-                        val ishaStr = formatEpochOrTimeString(todayObj.opt("isha"))
+            if (!response.isSuccessful) return@withContext null
 
-                        val slots = listOf(
-                            parseSlotFromTimeString(PrayerName.FAJR, fajrStr),
-                            parseSlotFromTimeString(PrayerName.SUNRISE, syurukStr),
-                            parseSlotFromTimeString(PrayerName.DHUHR, dhuhrStr),
-                            parseSlotFromTimeString(PrayerName.ASR, asrStr),
-                            parseSlotFromTimeString(PrayerName.MAGHRIB, maghribStr),
-                            parseSlotFromTimeString(PrayerName.ISHA, ishaStr)
-                        )
+            val body = response.body?.string() ?: return@withContext null
+            val json = JSONObject(body)
+            val prayersArray = json.optJSONArray("prayers")
+            if (prayersArray != null && prayersArray.length() > 0) {
+                val todayObj = prayersArray.getJSONObject(0)
 
-                        val cal = Calendar.getInstance()
-                        val dateDisplay = SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault()).format(cal.time)
-                        val lastUpdateStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+                val fajrTime = formatJakimEpochOrTime(todayObj.opt("fajr"))
+                val syurukTime = formatJakimEpochOrTime(todayObj.opt("syuruk"))
+                val dhuhrTime = formatJakimEpochOrTime(todayObj.opt("dhuhr"))
+                val asrTime = formatJakimEpochOrTime(todayObj.opt("asr"))
+                val maghribTime = formatJakimEpochOrTime(todayObj.opt("maghrib"))
+                val ishaTime = formatJakimEpochOrTime(todayObj.opt("isha"))
 
-                        return@withContext PrayerSchedule(
-                            dateFormatted = dateDisplay,
-                            hijriFormatted = hijri,
-                            locationName = location.name,
-                            zoneCode = location.zoneCode,
-                            slots = slots,
-                            lastUpdatedFormatted = "Updated: $lastUpdateStr (JAKIM Live)",
-                            isUsingCachedData = false,
-                            isUnavailable = false
-                        )
-                    }
-                }
+                val cal = Calendar.getInstance()
+                val dateDisplay = SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault()).format(cal.time)
+                val hijriStr = todayObj.optString("hijri", estimateHijriDate(cal))
+                val lastUpdateStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+
+                val slots = listOf(
+                    parseSlot(PrayerName.FAJR, fajrTime),
+                    parseSlot(PrayerName.SUNRISE, syurukTime),
+                    parseSlot(PrayerName.DHUHR, dhuhrTime),
+                    parseSlot(PrayerName.ASR, asrTime),
+                    parseSlot(PrayerName.MAGHRIB, maghribTime),
+                    parseSlot(PrayerName.ISHA, ishaTime)
+                )
+
+                return@withContext PrayerSchedule(
+                    dateFormatted = dateDisplay,
+                    hijriFormatted = hijriStr,
+                    locationName = locationName,
+                    zoneCode = zoneCode,
+                    slots = slots,
+                    lastUpdatedFormatted = "JAKIM Live • $lastUpdateStr",
+                    isUsingCachedData = false,
+                    isUnavailable = false
+                )
             }
-        } catch (_: Exception) {
-            // Fall through to fallback
+        } catch (e: Exception) {
+            Log.d(tag, "Online JAKIM fetch failed, using calibrated astronomical fallback: ${e.message}")
         }
         return@withContext null
     }
 
-    private fun formatEpochOrTimeString(value: Any?): String {
-        if (value == null) return "00:00"
+    private fun formatJakimEpochOrTime(value: Any?): String {
+        if (value == null) return "06:00"
         if (value is Number) {
-            val epochSec = value.toLong()
-            val date = Date(epochSec * 1000L)
+            val date = Date(value.toLong() * 1000L)
             val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-            sdf.timeZone = TimeZone.getTimeZone("Asia/Kuala_Lumpur")
             return sdf.format(date)
         }
         val str = value.toString().trim()
-        return if (str.length >= 5) str.substring(0, 5) else str
+        if (str.length >= 5 && str.contains(":")) {
+            return str.substring(0, 5)
+        }
+        return "06:00"
     }
 
-    private fun parseSlotFromTimeString(prayer: PrayerName, timeStr: String): PrayerSlot {
-        val parts = timeStr.split(":")
-        val hour24 = parts.getOrNull(0)?.toIntOrNull() ?: 12
+    private fun parseSlot(prayer: PrayerName, time24Str: String): PrayerSlot {
+        val parts = time24Str.split(":")
+        val hour = parts.getOrNull(0)?.toIntOrNull() ?: 6
         val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
 
         val hour12 = when {
-            hour24 == 0 -> 12
-            hour24 > 12 -> hour24 - 12
-            else -> hour24
+            hour == 0 -> 12
+            hour > 12 -> hour - 12
+            else -> hour
         }
-        val amPm = if (hour24 >= 12) "PM" else "AM"
+        val amPm = if (hour >= 12) "PM" else "AM"
         val time12 = String.format(Locale.getDefault(), "%02d:%02d %s", hour12, minute, amPm)
-        val time24 = String.format(Locale.getDefault(), "%02d:%02d", hour24, minute)
+        val formatted24 = String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
 
         return PrayerSlot(
             name = prayer,
-            time24 = time24,
+            time24 = formatted24,
             time12 = time12,
-            hour = hour24,
+            hour = hour,
             minute = minute
         )
     }
 
-    /**
-     * Computes the real-time device clock state, current active prayer,
-     * next prayer, and the exact countdown timer.
-     */
     private fun computeCurrentPrayerState(location: PrayerLocation): PrayerCountdownState {
-        val nowCal = Calendar.getInstance()
-        val schedule = onlineCache[location.zoneCode] ?: calculatePrayerTimesForDate(nowCal, location)
+        val now = Calendar.getInstance()
+        val currentHour = now.get(Calendar.HOUR_OF_DAY)
+        val currentMinute = now.get(Calendar.MINUTE)
+        val currentSecond = now.get(Calendar.SECOND)
+        val currentTotalSeconds = (currentHour * 3600) + (currentMinute * 60) + currentSecond
+
+        val schedule = onlineCache[location.zoneCode] ?: calculatePrayerTimesForDate(now, location)
+
+        var currentSlot: PrayerSlot? = null
+        var nextSlot: PrayerSlot = schedule.fajr
+        var remainingSeconds: Long = 0
+        var totalSegmentSeconds: Long = 3600
+
+        val evaluatedSlots = schedule.slots.map { slot ->
+            val slotTotalSec = (slot.hour * 3600) + (slot.minute * 60)
+            val isPassed = currentTotalSeconds >= slotTotalSec
+            slot.copy(isPassed = isPassed)
+        }
+
+        val obligatorySlots = evaluatedSlots.filter { it.name.isObligatory }
+
+        val passedObligatory = obligatorySlots.filter { it.isPassed }
+        currentSlot = passedObligatory.lastOrNull()
+
+        val upcoming = obligatorySlots.firstOrNull { !it.isPassed }
+        if (upcoming != null) {
+            nextSlot = upcoming
+            val targetSec = (nextSlot.hour * 3600) + (nextSlot.minute * 60)
+            remainingSeconds = (targetSec - currentTotalSeconds).toLong().coerceAtLeast(0)
+
+            val prevSlotSec = if (currentSlot != null) {
+                (currentSlot.hour * 3600) + (currentSlot.minute * 60)
+            } else {
+                0
+            }
+            totalSegmentSeconds = (targetSec - prevSlotSec).toLong().coerceAtLeast(60)
+        } else {
+            // All prayers for today have passed. Next prayer is tomorrow's Fajr!
+            val tomorrowFajr = schedule.fajr
+            nextSlot = tomorrowFajr
+            val midnightRemaining = (86400 - currentTotalSeconds)
+            val tomorrowFajrSec = (tomorrowFajr.hour * 3600) + (tomorrowFajr.minute * 60)
+            remainingSeconds = (midnightRemaining + tomorrowFajrSec).toLong()
+
+            val ishaSec = (schedule.isha.hour * 3600) + (schedule.isha.minute * 60)
+            totalSegmentSeconds = (86400 - ishaSec + tomorrowFajrSec).toLong().coerceAtLeast(60)
+        }
+
+        val progressFraction = if (totalSegmentSeconds > 0) {
+            val elapsed = totalSegmentSeconds - remainingSeconds
+            (elapsed.toFloat() / totalSegmentSeconds.toFloat()).coerceIn(0.0f, 1.0f)
+        } else {
+            0.5f
+        }
+
+        val finalSlots = evaluatedSlots.map { slot ->
+            val isCurrent = currentSlot?.name == slot.name
+            val isNext = nextSlot.name == slot.name && !slot.isPassed
+            slot.copy(isCurrent = isCurrent, isNext = isNext)
+        }
+
+        val updatedSchedule = schedule.copy(slots = finalSlots)
 
         val timeFormatter = SimpleDateFormat("hh:mm:ss a", Locale.getDefault())
         val dateFormatter = SimpleDateFormat("EEEE, d MMMM", Locale.getDefault())
         val dayFormatter = SimpleDateFormat("EEEE", Locale.getDefault())
 
-        val currentTimeFormatted = timeFormatter.format(nowCal.time)
-        val currentDateFormatted = dateFormatter.format(nowCal.time)
-        val currentDayFormatted = dayFormatter.format(nowCal.time)
+        val timeStr = timeFormatter.format(now.time)
+        val dateStr = dateFormatter.format(now.time)
+        val dayStr = dayFormatter.format(now.time)
 
-        val nowMinutes = nowCal.get(Calendar.HOUR_OF_DAY) * 60 + nowCal.get(Calendar.MINUTE)
-        val nowSecondsInDay = nowMinutes * 60 + nowCal.get(Calendar.SECOND)
-
-        val slots = schedule.slots
-
-        var currentPrayer: PrayerSlot? = null
-        var nextPrayer: PrayerSlot = slots.first { it.name == PrayerName.FAJR }
-
-        // Find which prayer window we are currently in
-        for (i in slots.indices) {
-            val slot = slots[i]
-            val slotSec = (slot.hour * 60 + slot.minute) * 60
-            if (nowSecondsInDay >= slotSec) {
-                currentPrayer = slot
-            } else {
-                nextPrayer = slot
-                break
-            }
-        }
-
-        // If after Isha, next prayer is tomorrow's Fajr
-        val nextPrayerSec = (nextPrayer.hour * 60 + nextPrayer.minute) * 60
-        val remainingSeconds = if (nextPrayerSec >= nowSecondsInDay) {
-            (nextPrayerSec - nowSecondsInDay).toLong()
-        } else {
-            // Tomorrow's Fajr
-            val secondsUntilMidnight = (24 * 3600) - nowSecondsInDay
-            val fajrSec = (slots[0].hour * 60 + slots[0].minute) * 60
-            (secondsUntilMidnight + fajrSec).toLong()
-        }
-
-        val hours = remainingSeconds / 3600
-        val minutes = (remainingSeconds % 3600) / 60
-        val seconds = remainingSeconds % 60
-
-        val formattedCountdown = String.format(Locale.getDefault(), "%02d:%02d:%02d remaining", hours, minutes, seconds)
-
-        // Progress fraction between previous and next prayer
-        val prevPrayerSec = if (currentPrayer != null) {
-            (currentPrayer.hour * 60 + currentPrayer.minute) * 60
-        } else {
-            // Yesterday's Isha
-            (slots.last().hour * 60 + slots.last().minute) * 60 - 24 * 3600
-        }
-
-        val totalInterval = max(1, nextPrayerSec - prevPrayerSec)
-        val elapsed = max(0, nowSecondsInDay - prevPrayerSec)
-        val progressFraction = (elapsed.toFloat() / totalInterval.toFloat()).coerceIn(0.0f, 1.0f)
-
-        // Mark passed / current / next on schedule slots
-        val updatedSlots = slots.map { slot ->
-            val slotSec = (slot.hour * 60 + slot.minute) * 60
-            val isPassed = nowSecondsInDay >= slotSec && slot != currentPrayer
-            val isCurrent = slot == currentPrayer
-            val isNext = slot == nextPrayer
-            slot.copy(isPassed = isPassed, isCurrent = isCurrent, isNext = isNext)
-        }
+        val hoursRem = remainingSeconds / 3600
+        val minsRem = (remainingSeconds % 3600) / 60
+        val secsRem = remainingSeconds % 60
+        val formattedCountdown = String.format(Locale.getDefault(), "%02d:%02d:%02d remaining", hoursRem, minsRem, secsRem)
 
         return PrayerCountdownState(
-            currentTimeFormatted = currentTimeFormatted,
-            currentDateFormatted = currentDateFormatted,
-            currentDayFormatted = currentDayFormatted,
-            currentPrayer = currentPrayer,
-            nextPrayer = nextPrayer,
+            currentTimeFormatted = timeStr,
+            currentDateFormatted = dateStr,
+            currentDayFormatted = dayStr,
+            currentPrayer = currentSlot,
+            nextPrayer = nextSlot,
             formattedCountdown = formattedCountdown,
             remainingSeconds = remainingSeconds,
             progressFraction = progressFraction,
-            schedule = schedule.copy(slots = updatedSlots)
+            schedule = updatedSchedule
         )
     }
 
-    /**
-     * Accurate Astronomical Solar Calculation calibrated to official Malaysian JAKIM standards.
-     * Dynamic according to date, Malaysian zone / GPS coordinates, and timezone.
-     */
     private fun calculatePrayerTimesForDate(cal: Calendar, location: PrayerLocation): PrayerSchedule {
-        val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
-        val timeZoneOffsetHours = 8.0 // Malaysia Standard Time (UTC+8)
-
         val lat = location.latitude
         val lng = location.longitude
+        val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
 
-        // Solar Declination & Equation of Time (NOAA Solar Model)
-        val d = (dayOfYear - 1).toDouble()
-        val gamma = 2 * Math.PI / 365.0 * (d + (12.0 - lng / 15.0) / 24.0)
-
-        val eqtime = 229.18 * (0.000075 + 0.001868 * cos(gamma) - 0.032077 * sin(gamma) -
-                0.014615 * cos(2 * gamma) - 0.040849 * sin(2 * gamma))
-
-        val decl = 0.006918 - 0.399912 * cos(gamma) + 0.070257 * sin(gamma) -
-                0.006758 * cos(2 * gamma) + 0.000907 * sin(2 * gamma) -
-                0.002697 * cos(3 * gamma) + 0.00148 * sin(3 * gamma)
-
+        val b = 2.0 * Math.PI * (dayOfYear - 81) / 365.0
+        val equationOfTimeMinutes = 9.87 * sin(2 * b) - 7.53 * cos(b) - 1.5 * sin(b)
+        val declinationDeg = 23.45 * sin(Math.toRadians(360.0 / 365.0 * (dayOfYear - 81)))
+        val decl = Math.toRadians(declinationDeg)
         val latRad = Math.toRadians(lat)
 
-        // Solar Noon (Meridian transit base)
-        val solarNoonUtcMinutes = 720.0 - (4.0 * lng) - eqtime
-        val solarNoonLocalHours = (solarNoonUtcMinutes / 60.0) + timeZoneOffsetHours
+        val standardMeridian = 120.0 // Malaysia is UTC+8 -> 120° E
+        val longitudeCorrectionMinutes = 4.0 * (standardMeridian - lng)
+        val solarNoonLocalHours = 12.0 + (longitudeCorrectionMinutes - equationOfTimeMinutes) / 60.0
 
-        // Dhuhr (+3 mins zawal/ihtiyat)
-        val dhuhrDecimal = solarNoonLocalHours + (3.0 / 60.0)
+        val fajrAngle = -18.0
+        val fajrHourAngle = calculateHourAngle(fajrAngle, latRad, decl)
+        val fajrDecimal = solarNoonLocalHours - (fajrHourAngle / 15.0) - (2.0 / 60.0)
 
-        // Sunrise (Syuruk) angle = -0.833° (atmospheric refraction + solar disc)
-        val sunriseHourAngle = calculateHourAngle(-0.833, latRad, decl)
-        val sunriseDecimal = solarNoonLocalHours - (sunriseHourAngle / 15.0) + (3.0 / 60.0)
+        val sunriseAngle = -0.833
+        val sunriseHourAngle = calculateHourAngle(sunriseAngle, latRad, decl)
+        val sunriseDecimal = solarNoonLocalHours - (sunriseHourAngle / 15.0) - (2.0 / 60.0)
         val sunsetDecimal = solarNoonLocalHours + (sunriseHourAngle / 15.0)
 
-        // Fajr (Subuh) - JAKIM Malaysia Standard: 20.0° depression + 10 min Peninsular Ihtiyat
-        val fajrHourAngle = calculateHourAngle(-20.0, latRad, decl)
-        val fajrDecimal = solarNoonLocalHours - (fajrHourAngle / 15.0) + (10.0 / 60.0)
+        val dhuhrDecimal = solarNoonLocalHours + (3.0 / 60.0)
 
-        // Asr (Shafi'i shadow factor = 1 + 3 min safety margin)
-        val asrAngle = -Math.toDegrees(atan(1.0 + tan(abs(latRad - decl))))
+        val shadowLength = 1.0 + tan(abs(latRad - decl))
+        val asrAngle = Math.toDegrees(atan(1.0 / shadowLength))
         val asrHourAngle = calculateHourAngle(asrAngle, latRad, decl)
         val asrDecimal = solarNoonLocalHours + (asrHourAngle / 15.0) + (3.0 / 60.0)
 
-        // Maghrib (Sunset + 4 mins Ihtiyat)
         val maghribDecimal = sunsetDecimal + (4.0 / 60.0)
 
-        // Isha (18.0° depression + 3 min buffer)
         val ishaHourAngle = calculateHourAngle(-18.0, latRad, decl)
         val ishaDecimal = solarNoonLocalHours + (ishaHourAngle / 15.0) + (3.0 / 60.0)
 
