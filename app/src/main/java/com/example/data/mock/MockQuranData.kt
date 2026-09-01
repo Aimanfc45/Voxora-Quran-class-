@@ -771,12 +771,14 @@ object MockQuranData {
             arabicName = "المَدُّ الأَصْلِيُّ (الطَّبِيعِي)",
             category = "Mad",
             colorHex = 0xFFD97706, // Amber / Orange
+            harakatCount = "2 Harakat (Counts)",
             description = "Natural elongation of vowel letters (Alif, Waw, Ya) without a Hamzah or Sukun following it.",
             ruleSummary = "Held for 2 Harakat (counts). Natural flow.",
             exampleArabic = "قَالَ • نُوحِيهَا",
             exampleTransliteration = "Qāla • Nūḥīhā",
             verseReference = "Al-Baqarah 2:2",
-            pronunciationTip = "Do not shorten below 2 counts nor stretch beyond. Natural opening of mouth."
+            pronunciationTip = "Do not shorten below 2 counts nor stretch beyond. Natural opening of mouth.",
+            hasVerifiedAudio = true
         ),
         TajwidRule(
             id = "mad_lazim",
@@ -784,12 +786,14 @@ object MockQuranData {
             arabicName = "المَدُّ اللَّازِم",
             category = "Mad",
             colorHex = 0xFFDC2626, // Red
+            harakatCount = "6 Harakat (Mandatory)",
             description = "Compulsory elongation caused by an original Sukun or Shaddah following a Madd letter.",
             ruleSummary = "Must be elongated for 6 Harakat (counts) unconditionally.",
             exampleArabic = "وَلَا الضَّالِّينَ • الحَاقَّةُ",
             exampleTransliteration = "Wa-lāḍ-ḍāllīn • Al-Ḥāqqah",
             verseReference = "Al-Fatihah 1:7",
-            pronunciationTip = "Sustain the vowel smoothly for 6 full beats before applying the Shaddah."
+            pronunciationTip = "Sustain the vowel smoothly for 6 full beats before applying the Shaddah.",
+            hasVerifiedAudio = true
         ),
         TajwidRule(
             id = "ikhfa_haqiqi",
@@ -797,12 +801,14 @@ object MockQuranData {
             arabicName = "الإِخْفَاءُ الحَقِيقِي",
             category = "Ikhfa",
             colorHex = 0xFF059669, // Emerald
+            harakatCount = "2 Counts (Nasal Ghunnah)",
             description = "Concealment of Nun Sakinah or Tanween when followed by any of the 15 Ikhfa letters with Ghunnah.",
             ruleSummary = "Hold nasal Ghunnah for 2 counts near the letter's articulation point.",
             exampleArabic = "مِن قَبْلِكُم • أَنزَلْنَا",
             exampleTransliteration = "Min qablikum • Anzalnā",
             verseReference = "Al-Baqarah 2:4",
-            pronunciationTip = "Position tongue near the next letter's Makhraj while vibrating air through the nasal passage."
+            pronunciationTip = "Position tongue near the next letter's Makhraj while vibrating air through the nasal passage.",
+            hasVerifiedAudio = true
         ),
         TajwidRule(
             id = "idgham_ghunnah",
@@ -810,12 +816,14 @@ object MockQuranData {
             arabicName = "الإِدْغَامُ بِغُنَّة",
             category = "Idgham",
             colorHex = 0xFF2563EB, // Blue
+            harakatCount = "2 Counts (Nasal Ghunnah)",
             description = "Merging of Nun Sakinah or Tanween into one of the four letters (ي ن م و - Yanmu) with a 2-count nasal Ghunnah.",
             ruleSummary = "Merge sound completely with clear 2-count nasal resonance.",
             exampleArabic = "مَن يَقُولُ • هُدًى لِّلْمُتَّقِينَ",
             exampleTransliteration = "May-yaqūlu • Hudal-lilmuttaqīn",
             verseReference = "Al-Baqarah 2:8",
-            pronunciationTip = "Blend the Nun into the next letter seamlessly while sustaining the nasal hum."
+            pronunciationTip = "Blend the Nun into the next letter seamlessly while sustaining the nasal hum.",
+            hasVerifiedAudio = true
         ),
         TajwidRule(
             id = "iqlab",
@@ -823,12 +831,14 @@ object MockQuranData {
             arabicName = "الإِقْلَاب",
             category = "Iqlab",
             colorHex = 0xFF7C3AED, // Purple
+            harakatCount = "2 Counts (Nasal Ghunnah)",
             description = "Converting Nun Sakinah or Tanween into a hidden Meem with Ghunnah when followed by the letter Ba (ب).",
             ruleSummary = "Transform Nun to Mim with 2 counts Ghunnah and light lip contact.",
             exampleArabic = "مِن بَعْدِ • عَلِيمٌ بِذَاتِ الصُّدُورِ",
             exampleTransliteration = "Mim-ba'di • 'Alīmum bi-dhātis-ṣudūr",
             verseReference = "Al-Baqarah 2:27",
-            pronunciationTip = "Close lips gently without pressing tightly while maintaining nasal vibration."
+            pronunciationTip = "Close lips gently without pressing tightly while maintaining nasal vibration.",
+            hasVerifiedAudio = true
         ),
         TajwidRule(
             id = "qalqalah",
@@ -836,12 +846,14 @@ object MockQuranData {
             arabicName = "القَلْقَلَة",
             category = "Qalqalah",
             colorHex = 0xFF0284C7, // Cyan
+            harakatCount = "Echo Release",
             description = "Vibration or echoing sound made when pronouncing the 5 Qalqalah letters (ق ط ب ج د - Quṭb Jad) with Sukun.",
             ruleSummary = "Distinct echo release on Sukun. Stronger (Kubra) when stopping.",
             exampleArabic = "الفَلَقِ • أَحَدٌ • يَجْعَلُونَ",
             exampleTransliteration = "Al-Falaq • Aḥad • Yaj'alūn",
             verseReference = "Al-Ikhlas 112:1",
-            pronunciationTip = "Quickly bounce off the articulation point without adding any vowel sound."
+            pronunciationTip = "Quickly bounce off the articulation point without adding any vowel sound.",
+            hasVerifiedAudio = true
         ),
         TajwidRule(
             id = "ghunnah_mushaddadah",
@@ -849,12 +861,88 @@ object MockQuranData {
             arabicName = "الغُنَّةُ المُشَدَّدَة",
             category = "Ghunnah",
             colorHex = 0xFF10B981, // Teal
+            harakatCount = "2 Counts (Mandatory)",
             description = "Compulsory nasalization of 2 counts on Nun with Shaddah (نّ) and Meem with Shaddah (مّ).",
             ruleSummary = "Full 2 Harakat nasal resonance from the nasal cavity (Khayshum).",
             exampleArabic = "إِنَّ • ثُمَّ • النَّاسِ",
             exampleTransliteration = "Inna • Thumma • An-Nās",
             verseReference = "An-Nas 114:1",
-            pronunciationTip = "Hold the letter firmly with clear acoustic resonance from the nose."
+            pronunciationTip = "Hold the letter firmly with clear acoustic resonance from the nose.",
+            hasVerifiedAudio = true
         )
     )
+
+    val verifiedTafsirList: List<com.example.data.model.VerseTafsir> = listOf(
+        com.example.data.model.VerseTafsir(
+            surahNumber = 1,
+            verseNumber = 1,
+            surahName = "Al-Fatihah",
+            textArabic = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
+            transliteration = "Bismillāhir-Raḥmānir-Raḥīm",
+            translationMalay = "Dengan nama Allah, Yang Maha Pemurah, lagi Maha Mengasihani.",
+            translationEnglish = "In the name of Allah, the Entirely Merciful, the Especially Merciful.",
+            tafsirSummaryMalay = "Ayat pembukaan yang mengajar hamba agar memulakan setiap urusan dengan memohon keberkatan Nama Allah, yang rahmat-Nya meliputi seluruh makhluk di dunia dan dikhususkan untuk orang beriman di akhirat.",
+            tafsirSummaryEnglish = "The opening verse instructing the servant to commence every action by seeking blessings through Allah's name, whose mercy encompasses all creation.",
+            sourceName = "Tafsir Ringkas JAKIM & Tafsir Ibn Kathir",
+            keyThemes = listOf("Tawhid", "Divine Mercy", "Supplication"),
+            revelationContext = "Meccan revelation at the beginning of the Prophet's mission."
+        ),
+        com.example.data.model.VerseTafsir(
+            surahNumber = 1,
+            verseNumber = 2,
+            surahName = "Al-Fatihah",
+            textArabic = "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",
+            transliteration = "Al-ḥamdu lillāhi Rabbil-ʿālamīn",
+            translationMalay = "Segala puji tertentu bagi Allah, Tuhan sekalian alam.",
+            translationEnglish = "[All] praise is [due] to Allah, Lord of the worlds -",
+            tafsirSummaryMalay = "Pujian mutlak yang sempurna hanya layak bagi Allah Ta'ala semata-mata, Pencipta, Pemelihara, dan Pentadbir seluruh alam semesta.",
+            tafsirSummaryEnglish = "Absolute and complete praise belongs solely to Allah, the Creator, Sustainer, and Nourisher of all realms of existence.",
+            sourceName = "Tafsir Ringkas JAKIM & Tafsir Ibn Kathir",
+            keyThemes = listOf("Gratitude", "Lordship (Rububiyyah)", "Universal Praise")
+        ),
+        com.example.data.model.VerseTafsir(
+            surahNumber = 1,
+            verseNumber = 7,
+            surahName = "Al-Fatihah",
+            textArabic = "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ",
+            transliteration = "Ṣirāṭallaḏhīna anʿamta ʿalayhim ghayril-maghḍūbi ʿalayhim walāḍ-ḍāllīn",
+            translationMalay = "Iaitu jalan orang-orang yang Engkau telah kurniakan nikmat kepada mereka, bukan jalan orang-orang yang dimurkai dan bukan pula jalan orang-orang yang sesat.",
+            translationEnglish = "The path of those upon whom You have bestowed favor, not of those who have evoked [Your] anger or of those who are astray.",
+            tafsirSummaryMalay = "Permohonan hidayah berterusan ke jalan para Nabi, Siddiqin, Syuhada dan Solihin, serta dijauhkan daripada jalan yang dimurkai dan jalan kesesatan.",
+            tafsirSummaryEnglish = "Supplication for steadfast guidance upon the path of the righteous prophets and saints, avoiding the paths of disobedience and misguidance.",
+            sourceName = "Tafsir Ringkas JAKIM & Tafsir Ibn Kathir",
+            keyThemes = listOf("Hidayah", "Steadfastness", "The Right Path")
+        ),
+        com.example.data.model.VerseTafsir(
+            surahNumber = 2,
+            verseNumber = 255,
+            surahName = "Al-Baqarah",
+            textArabic = "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ...",
+            transliteration = "Allāhu lā ilāha illā huwal-Ḥayyul-Qayyūm...",
+            translationMalay = "Allah, tiada Tuhan melainkan Dia, Yang Tetap Hidup, Yang Kekal selama-lamanya mentadbirkan sekalian makhluk-Nya. Tiada mengantuk dan tiada tidur...",
+            translationEnglish = "Allah - there is no deity except Him, the Ever-Living, the Sustainer of all existence. Neither drowsiness overtakes Him nor sleep...",
+            tafsirSummaryMalay = "Ayat al-Kursi, ayat paling agung dalam Al-Quran yang menghimpunkan 5 sifat ketuhanan tertinggi: Keesaan, Hidup yang Mutlak (Al-Hayy), Pemelihara yang Berdiri Sendiri (Al-Qayyum), Pengetahuan yang meliputi segalanya, dan Kekuasaan mutlak di langit dan bumi.",
+            tafsirSummaryEnglish = "Ayat al-Kursi (The Verse of the Throne), the greatest verse in the Holy Quran, expounding Allah's absolute oneness, eternal sovereignty, all-encompassing knowledge, and supreme majesty.",
+            sourceName = "Tafsir Ibn Kathir & Sahih International",
+            keyThemes = listOf("Tawhid", "Ayat al-Kursi", "Divine Majesty", "Protection"),
+            revelationContext = "Medinan revelation, praised extensively in authentic Sunnah."
+        ),
+        com.example.data.model.VerseTafsir(
+            surahNumber = 112,
+            verseNumber = 1,
+            surahName = "Al-Ikhlas",
+            textArabic = "قُلْ هُوَ اللَّهُ أَحَدٌ",
+            transliteration = "Qul Huwal-Lāhu Aḥad",
+            translationMalay = "Katakanlah (wahai Muhammad): Dialah Allah, Yang Maha Esa.",
+            translationEnglish = "Say, 'He is Allah, [who is] One.'",
+            tafsirSummaryMalay = "Penegasan tauhid yang tulen dan suci. Allah Maha Esa dalam Zat-Nya, sifat-sifat-Nya, dan perbuatan-Nya, tiada sekutu atau tandingan bagi-Nya.",
+            tafsirSummaryEnglish = "Declaration of absolute monotheism. Allah is uniquely One in His Essence, Attributes, and Actions, without partners or equals.",
+            sourceName = "Tafsir Ringkas JAKIM",
+            keyThemes = listOf("Tawhid Al-Khalis", "Purity of Faith")
+        )
+    )
+
+    fun getTafsirForVerse(surahNumber: Int, verseNumber: Int): com.example.data.model.VerseTafsir? {
+        return verifiedTafsirList.find { it.surahNumber == surahNumber && it.verseNumber == verseNumber }
+    }
 }

@@ -185,22 +185,38 @@ fun TajwidGuideDialog(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = ruleColor.copy(alpha = 0.12f)
-                                    ) {
-                                        Text(
-                                            text = "Category: ${rule.category}",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = ruleColor,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                        )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = ruleColor.copy(alpha = 0.12f)
+                                        ) {
+                                            Text(
+                                                text = rule.category,
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = ruleColor,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+
+                                        if (rule.harakatCount.isNotBlank()) {
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = GoldPrimary.copy(alpha = 0.18f)
+                                            ) {
+                                                Text(
+                                                    text = rule.harakatCount,
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                    color = Emerald950,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                )
+                                            }
+                                        }
                                     }
 
                                     Text(
-                                        text = "Example: ${rule.exampleArabic}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Emerald700
+                                        text = rule.exampleArabic,
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = Emerald800
                                     )
                                 }
                             }
@@ -226,6 +242,14 @@ fun TajwidGuideDialog(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(text = r.description, style = MaterialTheme.typography.bodyMedium)
+                    if (r.harakatCount.isNotBlank()) {
+                        Surface(shape = RoundedCornerShape(8.dp), color = GoldPrimary.copy(alpha = 0.2f)) {
+                            Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("Duration / Elongation: ", fontWeight = FontWeight.Bold, color = Emerald950, style = MaterialTheme.typography.labelMedium)
+                                Text(r.harakatCount, fontWeight = FontWeight.SemiBold, color = Emerald900, style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    }
                     Surface(shape = RoundedCornerShape(8.dp), color = Emerald50) {
                         Column(modifier = Modifier.padding(10.dp)) {
                             Text("Pronunciation Tip:", fontWeight = FontWeight.Bold, color = Emerald900, style = MaterialTheme.typography.labelMedium)

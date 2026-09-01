@@ -61,6 +61,9 @@ fun QuranReaderScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showAudioDetailSheet by remember { mutableStateOf(false) }
+    var showQariHubDialog by remember { mutableStateOf(false) }
+    var showBookmarksDialog by remember { mutableStateOf(false) }
+    var selectedVerseForTafsir by remember { mutableStateOf<Verse?>(null) }
     var showJumpToVerseDialog by remember { mutableStateOf(false) }
     var showSearchDialog by remember { mutableStateOf(false) }
     var showTajwidGuideDialog by remember { mutableStateOf(false) }
@@ -139,6 +142,30 @@ fun QuranReaderScreen(
                         )
                     }
 
+                    // Qari Audio Hub Picker Button
+                    IconButton(
+                        onClick = { showQariHubDialog = true },
+                        modifier = Modifier.testTag("quran_reciters_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.RecordVoiceOver,
+                            contentDescription = "Select Qari Reciter",
+                            tint = GoldPrimary
+                        )
+                    }
+
+                    // Bookmarks Button
+                    IconButton(
+                        onClick = { showBookmarksDialog = true },
+                        modifier = Modifier.testTag("quran_bookmarks_hub_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.BookmarkBorder,
+                            contentDescription = "Bookmarks & Folders",
+                            tint = Emerald700
+                        )
+                    }
+
                     if (viewMode == QuranViewMode.SURAH_READING) {
                         // Tajwid Rules Guide Button
                         IconButton(
@@ -188,14 +215,14 @@ fun QuranReaderScreen(
                             )
                         }
 
-                        // Display Settings Button
+                        // Display & Night Mode Settings Button
                         IconButton(
                             onClick = { showSettingsDialog = true },
                             modifier = Modifier.testTag("quran_settings_button")
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.FormatSize,
-                                contentDescription = "Display Settings",
+                                imageVector = Icons.Outlined.Tune,
+                                contentDescription = "Reader Display Settings",
                                 tint = Emerald700
                             )
                         }
@@ -220,7 +247,8 @@ fun QuranReaderScreen(
                         lastReadPosition = lastReadPosition,
                         onOpenCatalog = { viewMode = QuranViewMode.SURAH_CATALOG },
                         onOpenJuz = { viewMode = QuranViewMode.JUZ_SELECTION },
-                        onOpenBookmarks = { viewMode = QuranViewMode.BOOKMARKS },
+                        onOpenBookmarks = { showBookmarksDialog = true },
+                        onOpenTafsir = { verse -> selectedVerseForTafsir = verse },
                         onAddNote = { verse ->
                             showNoteDialogForVerse = verse
                             newNoteText = ""
@@ -239,7 +267,7 @@ fun QuranReaderScreen(
                             viewMode = QuranViewMode.SURAH_READING
                         },
                         onOpenJuz = { viewMode = QuranViewMode.JUZ_SELECTION },
-                        onOpenBookmarks = { viewMode = QuranViewMode.BOOKMARKS }
+                        onOpenBookmarks = { showBookmarksDialog = true }
                     )
                 }
 
@@ -273,15 +301,72 @@ fun QuranReaderScreen(
                     )
                 }
             }
+
+            // Sticky Mini Player at bottom when recitation is active
+            AnimatedVisibility(
+                visible = audioState.isPlaying || audioState.totalDurationSeconds > 0 || audioState.isLoading,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                QuranMiniAudioPlayer(
+                    audioState = audioState,
+                    surahName = selectedSurah.nameEnglish,
+                    onExpandControls = { showAudioDetailSheet = true },
+                    onTogglePlay = { repository.togglePlayPause() },
+                    onNextVerse = { repository.playNextVerse() },
+                    onPreviousVerse = { repository.playPreviousVerse() },
+                    onClose = { repository.stopAudio() }
+                )
+            }
         }
     }
 
-    // Display & Font Settings Dialog
+    // FEATURE 8: Night Reading Mode & Comprehensive Settings Dialog
     if (showSettingsDialog) {
-        QuranSettingsDialog(
-            settings = quranSettings,
+        QuranReaderSettingsDialog(
             repository = repository,
             onDismiss = { showSettingsDialog = false }
+        )
+    }
+
+    // FEATURE 1: Comprehensive Qari Reciters & Audio Hub Dialog
+    if (showQariHubDialog) {
+        QariAudioHubDialog(
+            currentReciterName = audioState.reciterName,
+            repository = repository,
+            onSelectReciter = { reciterName ->
+                repository.setReciter(reciterName)
+                onShowSnackbar("Reciter set to $reciterName")
+            },
+            onDismiss = { showQariHubDialog = false }
+        )
+    }
+
+    // FEATURE 4: Advanced Bookmarks Dialog
+    if (showBookmarksDialog) {
+        QuranBookmarksDialog(
+            repository = repository,
+            onJumpToBookmark = { bm ->
+                repository.selectSurah(bm.surahNumber)
+                repository.jumpToVerse(bm.verseNumber)
+                viewMode = QuranViewMode.SURAH_READING
+                showBookmarksDialog = false
+            },
+            onDismiss = { showBookmarksDialog = false }
+        )
+    }
+
+    // FEATURE 2 & 3: Verse Detail, Tafsir, Note & Highlight Dialog
+    if (selectedVerseForTafsir != null) {
+        VerseDetailTafsirDialog(
+            surah = selectedSurah,
+            verse = selectedVerseForTafsir!!,
+            repository = repository,
+            onDismiss = { selectedVerseForTafsir = null },
+            onPlayAudio = {
+                repository.playVerseAudio(selectedSurah.number, selectedVerseForTafsir!!.verseNumber)
+            }
         )
     }
 
@@ -408,10 +493,12 @@ private fun SurahReadingView(
     onOpenCatalog: () -> Unit,
     onOpenJuz: () -> Unit,
     onOpenBookmarks: () -> Unit,
+    onOpenTafsir: (Verse) -> Unit,
     onAddNote: (Verse) -> Unit,
     onShowSnackbar: (String) -> Unit
 ) {
     val listState = rememberLazyListState()
+    val highlights by repository.verseHighlights.collectAsState()
 
     // Smooth Auto-scroll to active verse when audio is playing or jumping
     LaunchedEffect(audioState.surahNumber, audioState.verseNumber, currentVerseIndex) {
@@ -561,12 +648,14 @@ private fun SurahReadingView(
 
                 val isBookmarked = repository.isVerseBookmarked(surah.number, verse.verseNumber)
                 val verseNotes = repository.getNotesForVerse(surah.number, verse.verseNumber)
+                val verseHighlight = highlights.find { it.surahNumber == surah.number && it.verseNumber == verse.verseNumber }
 
                 VerseItemCard(
                     verse = verse,
                     isCurrentPlaying = isCurrentPlaying,
                     isBookmarked = isBookmarked,
                     hasNotes = verseNotes.isNotEmpty(),
+                    highlightColorHex = verseHighlight?.colorHex,
                     quranSettings = quranSettings,
                     onPlayAudio = {
                         repository.playVerseAudio(surah.number, verse.verseNumber)
@@ -575,6 +664,7 @@ private fun SurahReadingView(
                         val bookmarked = repository.toggleBookmark(surah, verse)
                         onShowSnackbar(if (bookmarked) "Verse ${verse.verseNumber} bookmarked!" else "Bookmark removed")
                     },
+                    onOpenTafsir = { onOpenTafsir(verse) },
                     onAddNote = { onAddNote(verse) }
                 )
             }
@@ -588,9 +678,11 @@ private fun VerseItemCard(
     isCurrentPlaying: Boolean,
     isBookmarked: Boolean,
     hasNotes: Boolean,
+    highlightColorHex: Long?,
     quranSettings: QuranSettings,
     onPlayAudio: () -> Unit,
     onToggleBookmark: () -> Unit,
+    onOpenTafsir: () -> Unit,
     onAddNote: () -> Unit
 ) {
     val lineHeightMultiplier = when (quranSettings.lineSpacing) {
@@ -599,15 +691,25 @@ private fun VerseItemCard(
         else -> 1.7f
     }
 
+    val highlightColor = remember(highlightColorHex) {
+        if (highlightColorHex != null) {
+            Color(highlightColorHex).copy(alpha = 0.18f)
+        } else null
+    }
+
+    val cardBgColor = when {
+        isCurrentPlaying -> Emerald900.copy(alpha = 0.18f)
+        highlightColor != null -> highlightColor
+        else -> MaterialTheme.colorScheme.surface
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .testTag("verse_item_${verse.verseNumber}"),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isCurrentPlaying) Emerald900.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface
-        ),
+        colors = CardDefaults.cardColors(containerColor = cardBgColor),
         border = if (isCurrentPlaying) CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(GoldPrimary)) else CardDefaults.outlinedCardBorder()
     ) {
         Column(
@@ -688,6 +790,19 @@ private fun VerseItemCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Tafsir & Study Button
+                    IconButton(
+                        onClick = onOpenTafsir,
+                        modifier = Modifier.size(34.dp).testTag("verse_tafsir_btn_${verse.verseNumber}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.MenuBook,
+                            contentDescription = "Tafsir & Study",
+                            tint = Emerald700,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
                     // Dedicated Audio Play Button
                     IconButton(
                         onClick = onPlayAudio,
@@ -731,7 +846,7 @@ private fun VerseItemCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Arabic Text
+            // Arabic Text (clickable for Tafsir)
             Text(
                 text = verse.textArabic,
                 style = MaterialTheme.typography.headlineMedium.copy(
@@ -743,6 +858,7 @@ private fun VerseItemCard(
                 textAlign = TextAlign.End,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clickable { onOpenTafsir() }
                     .padding(vertical = 4.dp)
             )
 

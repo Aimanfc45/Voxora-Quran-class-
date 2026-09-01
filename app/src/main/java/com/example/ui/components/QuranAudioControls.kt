@@ -696,7 +696,7 @@ fun QuranAudioDetailBottomSheet(
 
     // Comprehensive Reciters Picker Dialog
     if (showReciterPicker) {
-        RecitersSelectionDialog(
+        QariAudioHubDialog(
             currentReciterName = audioState.reciterName,
             repository = repository,
             onSelectReciter = { name ->

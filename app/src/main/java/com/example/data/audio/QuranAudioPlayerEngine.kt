@@ -286,10 +286,30 @@ class QuranAudioPlayerEngine(
     }
 
     override fun setReciter(reciterName: String) {
-        _audioState.update { it.copy(reciterName = reciterName) }
+        _audioState.update { it.copy(reciterName = reciterName, isPreviewPlaying = false, previewReciterName = null) }
         if (_audioState.value.isPlaying) {
             val state = _audioState.value
             playVerse(state.surahNumber, state.verseNumber)
+        }
+    }
+
+    fun previewReciterAudio(reciterName: String) {
+        val previewUrl = buildVerifiedAudioUrl(1, 1, reciterName)
+        _audioState.update {
+            it.copy(
+                isPreviewPlaying = true,
+                previewReciterName = reciterName,
+                isLoading = true,
+                errorMessage = null
+            )
+        }
+        loadAndPlay(previewUrl)
+    }
+
+    fun stopAudioPreview() {
+        if (_audioState.value.isPreviewPlaying) {
+            stop()
+            _audioState.update { it.copy(isPreviewPlaying = false, previewReciterName = null) }
         }
     }
 

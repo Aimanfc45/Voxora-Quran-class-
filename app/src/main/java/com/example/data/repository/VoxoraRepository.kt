@@ -92,6 +92,14 @@ class VoxoraRepository(
     private val _bookmarks = MutableStateFlow(MockUserData.initialBookmarks)
     val bookmarks: StateFlow<List<QuranBookmark>> = _bookmarks.asStateFlow()
 
+    private val _verseHighlights = MutableStateFlow<List<VerseHighlight>>(
+        listOf(
+            VerseHighlight(id = "vh_1", surahNumber = 1, verseNumber = 1, colorHex = 0xFFF59E0B), // Gold
+            VerseHighlight(id = "vh_2", surahNumber = 2, verseNumber = 255, colorHex = 0xFF10B981) // Emerald
+        )
+    )
+    val verseHighlights: StateFlow<List<VerseHighlight>> = _verseHighlights.asStateFlow()
+
     private val _verseNotes = MutableStateFlow<List<VerseNote>>(
         listOf(
             VerseNote(
@@ -397,6 +405,22 @@ class VoxoraRepository(
         _quranSettings.update { it.copy(reciterName = reciter, selectedReciter = reciter) }
     }
 
+    fun setDefaultReciter(reciterName: String) {
+        _quranSettings.update { it.copy(defaultReciter = reciterName, reciterName = reciterName, selectedReciter = reciterName) }
+        audioEngine.setReciter(reciterName)
+        _reciters.update { list ->
+            list.map { it.copy(isDefault = (it.name == reciterName)) }
+        }
+    }
+
+    fun previewReciterAudio(reciterName: String) {
+        audioEngine.previewReciterAudio(reciterName)
+    }
+
+    fun stopAudioPreview() {
+        audioEngine.stopAudioPreview()
+    }
+
     fun toggleFavoriteReciter(reciterName: String) {
         _quranSettings.update { settings ->
             val favs = settings.favoriteReciters.toMutableSet()
@@ -414,12 +438,32 @@ class VoxoraRepository(
         }
     }
 
+    fun togglePlayPause() {
+        if (audioEngine.audioState.value.isPlaying) {
+            audioEngine.pause()
+        } else {
+            audioEngine.resume()
+        }
+    }
+
+    fun playNextVerse() {
+        audioEngine.nextVerse()
+    }
+
+    fun playPreviousVerse() {
+        audioEngine.previousVerse()
+    }
+
     fun nextAudioVerse() {
         audioEngine.nextVerse()
     }
 
     fun previousAudioVerse() {
         audioEngine.previousVerse()
+    }
+
+    fun setReciter(reciter: String) {
+        setAudioReciter(reciter)
     }
 
     // ====================================================
@@ -549,7 +593,7 @@ class VoxoraRepository(
     // BOOKMARKS & PRIVATE NOTES CRUD
     // ====================================================
 
-    fun toggleBookmark(surah: Surah, verse: Verse, customNote: String = "", category: String = "Favorites"): Boolean {
+    fun toggleBookmark(surah: Surah, verse: Verse, customNote: String = "", category: String = "Favourite Verses"): Boolean {
         val existing = _bookmarks.value.find { it.surahNumber == surah.number && it.verseNumber == verse.verseNumber }
         return if (existing != null) {
             _bookmarks.update { it.filterNot { b -> b.id == existing.id } }
@@ -561,11 +605,39 @@ class VoxoraRepository(
                 surahName = surah.nameEnglish,
                 verseNumber = verse.verseNumber,
                 snippetArabic = verse.textArabic.take(35) + "...",
+                title = "${surah.nameEnglish} $surah:${verse.verseNumber}",
                 note = customNote.ifBlank { "Bookmarked verse" },
                 category = category
             )
             _bookmarks.update { listOf(newBm) + it }
             true
+        }
+    }
+
+    fun addBookmarkWithDetails(surah: Surah, verse: Verse, title: String, note: String, category: String) {
+        val existing = _bookmarks.value.find { it.surahNumber == surah.number && it.verseNumber == verse.verseNumber }
+        val newBm = QuranBookmark(
+            id = existing?.id ?: "bm_${System.currentTimeMillis()}",
+            surahNumber = surah.number,
+            surahName = surah.nameEnglish,
+            verseNumber = verse.verseNumber,
+            snippetArabic = verse.textArabic.take(35) + "...",
+            title = title.ifBlank { "${surah.nameEnglish} ${surah.number}:${verse.verseNumber}" },
+            note = note,
+            category = category
+        )
+        _bookmarks.update { list ->
+            if (existing != null) {
+                list.map { if (it.id == existing.id) newBm else it }
+            } else {
+                listOf(newBm) + list
+            }
+        }
+    }
+
+    fun updateBookmarkCategory(bookmarkId: String, newCategory: String) {
+        _bookmarks.update { list ->
+            list.map { if (it.id == bookmarkId) it.copy(category = newCategory) else it }
         }
     }
 
@@ -575,6 +647,40 @@ class VoxoraRepository(
 
     fun isVerseBookmarked(surahNumber: Int, verseNumber: Int): Boolean {
         return _bookmarks.value.any { it.surahNumber == surahNumber && it.verseNumber == verseNumber }
+    }
+
+    // ====================================================
+    // VERSE HIGHLIGHTS
+    // ====================================================
+
+    fun toggleVerseHighlight(surahNumber: Int, verseNumber: Int, colorHex: Long): Boolean {
+        val existing = _verseHighlights.value.find { it.surahNumber == surahNumber && it.verseNumber == verseNumber }
+        return if (existing != null && existing.colorHex == colorHex) {
+            _verseHighlights.update { it.filterNot { h -> h.id == existing.id } }
+            false
+        } else if (existing != null) {
+            _verseHighlights.update { list ->
+                list.map { if (it.id == existing.id) it.copy(colorHex = colorHex) else it }
+            }
+            true
+        } else {
+            val newHighlight = VerseHighlight(
+                id = "vh_${System.currentTimeMillis()}",
+                surahNumber = surahNumber,
+                verseNumber = verseNumber,
+                colorHex = colorHex
+            )
+            _verseHighlights.update { listOf(newHighlight) + it }
+            true
+        }
+    }
+
+    fun removeVerseHighlight(surahNumber: Int, verseNumber: Int) {
+        _verseHighlights.update { it.filterNot { it.surahNumber == surahNumber && it.verseNumber == verseNumber } }
+    }
+
+    fun getVerseHighlight(surahNumber: Int, verseNumber: Int): VerseHighlight? {
+        return _verseHighlights.value.find { it.surahNumber == surahNumber && it.verseNumber == verseNumber }
     }
 
     fun addVerseNote(surahNumber: Int, verseNumber: Int, noteText: String) {
@@ -708,6 +814,39 @@ class VoxoraRepository(
 
     fun setTranslationLanguage(lang: String) {
         _quranSettings.update { it.copy(translationLanguage = lang) }
+    }
+
+    fun setQuranReadingTheme(theme: QuranReadingTheme) {
+        _quranSettings.update { it.copy(readingTheme = theme) }
+    }
+
+    fun setReadingBrightness(brightness: Float) {
+        _quranSettings.update { it.copy(readingBrightness = brightness.coerceIn(0.2f, 1.0f)) }
+    }
+
+    fun setArabicFontStyle(fontStyle: String) {
+        _quranSettings.update { it.copy(arabicFontStyle = fontStyle) }
+    }
+
+    fun toggleTafsir(show: Boolean) {
+        _quranSettings.update { it.copy(showTafsir = show) }
+    }
+
+    fun trackReadingTime(minutes: Int) {
+        _userProfile.update {
+            it.copy(hoursSpent = it.hoursSpent + (minutes / 60f))
+        }
+    }
+
+    fun trackAyahRead(surahNumber: Int, verseNumber: Int) {
+        val sName = _selectedSurah.value.nameEnglish
+        _lastReadPosition.value = "Surah $sName ($surahNumber:$verseNumber)"
+    }
+
+    fun trackAudioListeningTime(seconds: Int) {
+        _userProfile.update {
+            it.copy(hoursSpent = it.hoursSpent + (seconds / 3600f))
+        }
     }
 
     // ====================================================
