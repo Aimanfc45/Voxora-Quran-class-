@@ -214,10 +214,16 @@ class LiveKitClassService(
         }
     }
 
-    fun updateConfig(serverUrl: String, tokenEndpoint: String, devToken: String) {
-        val configured = serverUrl.isNotBlank() && (tokenEndpoint.isNotBlank() || devToken.isNotBlank())
+    fun updateConfig(
+        serverUrl: String = _config.value.serverUrl,
+        devTokenServerId: String = _config.value.devTokenServerId,
+        tokenEndpoint: String = _config.value.tokenEndpoint,
+        devToken: String = _config.value.devToken
+    ) {
+        val configured = serverUrl.isNotBlank() && (devTokenServerId.isNotBlank() || tokenEndpoint.isNotBlank() || devToken.isNotBlank())
         _config.value = LiveKitConfig(
             serverUrl = serverUrl.trim(),
+            devTokenServerId = devTokenServerId.trim(),
             tokenEndpoint = tokenEndpoint.trim(),
             devToken = devToken.trim(),
             isConfigured = configured
@@ -227,9 +233,16 @@ class LiveKitClassService(
         }
     }
 
+    private fun getStableParticipantIdentity(name: String): String {
+        val sanitized = name.lowercase().replace("\\s+".toRegex(), "_")
+        val suffix = Math.abs(context.packageName.hashCode()).toString(16).takeLast(4)
+        return "user_${sanitized}_$suffix"
+    }
+
     suspend fun joinClass(
         classId: String = "cls_live_01",
         participantName: String = "Student",
+        participantIdentity: String = getStableParticipantIdentity(participantName),
         role: ClassroomRole = _myRole.value
     ): Result<Boolean> = withContext(Dispatchers.IO) {
         _myRole.value = role
@@ -242,7 +255,7 @@ class LiveKitClassService(
                 _connectionQuality.value = ConnectionQualityLevel.UNCONFIGURED
                 _participants.value = emptyList()
             }
-            return@withContext Result.success(true)
+            return@withContext Result.failure(LiveKitError.InvalidConfiguration("LiveKit configuration is incomplete."))
         }
 
         try {
@@ -251,39 +264,78 @@ class LiveKitClassService(
                 _connectionError.value = null
             }
 
+            // 1. Resolve TokenSource according to priority
+            val tokenSource: LiveKitTokenSource = when {
+                currentConfig.devToken.isNotBlank() -> {
+                    LiveKitTokenSource.fromLiteral(
+                        serverUrl = currentConfig.serverUrl,
+                        participantToken = currentConfig.devToken
+                    )
+                }
+                currentConfig.tokenEndpoint.isNotBlank() -> {
+                    LiveKitTokenSource.fromEndpoint(
+                        endpointUrl = currentConfig.tokenEndpoint,
+                        okHttpClient = okHttpClient
+                    )
+                }
+                currentConfig.devTokenServerId.isNotBlank() -> {
+                    LiveKitTokenSource.fromDevelopmentTokenServer(
+                        tokenServerId = currentConfig.devTokenServerId,
+                        okHttpClient = okHttpClient
+                    )
+                }
+                else -> {
+                    throw LiveKitError.InvalidConfiguration("LiveKit Development Token Server ID or Token Endpoint must be configured.")
+                }
+            }
+
+            // 2. Fetch Credentials from TokenSource
+            val credentials = tokenSource.fetch(
+                roomName = classId,
+                participantName = participantName,
+                participantIdentity = participantIdentity
+            )
+
+            val connectUrl = credentials.serverUrl.ifBlank { currentConfig.serverUrl }
+            if (connectUrl.isBlank()) {
+                throw LiveKitError.InvalidConfiguration("LiveKit Server URL is required.")
+            }
+
+            // 3. Connect Room with credentials
             val r = room ?: LiveKit.create(context.applicationContext).also {
                 room = it
                 setupRoomEventListener()
             }
 
-            // Retrieve token from devToken, tokenEndpoint, or devTokenServerId
-            val token = when {
-                currentConfig.devToken.isNotBlank() -> currentConfig.devToken
-                currentConfig.tokenEndpoint.isNotBlank() -> fetchTokenFromBackend(currentConfig.tokenEndpoint, classId, participantName)
-                currentConfig.devTokenServerId.isNotBlank() -> fetchDevSandboxToken(currentConfig.devTokenServerId, classId, participantName, currentConfig.serverUrl)
-                else -> throw IllegalStateException("LiveKit Token or Development Token Server must be configured.")
+            try {
+                r.connect(connectUrl, credentials.participantToken)
+            } catch (e: Exception) {
+                throw LiveKitError.RoomConnectionFailed("Failed to connect to LiveKit room ($connectUrl): ${e.message}", e)
             }
-
-            r.connect(currentConfig.serverUrl, token)
 
             // Setup local audio/video based on preferences
             withContext(Dispatchers.Main) {
-                r.localParticipant.setMicrophoneEnabled(!_isMicMuted.value)
-                r.localParticipant.setCameraEnabled(_isVideoOn.value)
-                val localVid = r.localParticipant.getTrackPublication(Track.Source.CAMERA)?.track as? VideoTrack
-                _localVideoTrack.value = localVid
+                try {
+                    r.localParticipant.setMicrophoneEnabled(!_isMicMuted.value)
+                    r.localParticipant.setCameraEnabled(_isVideoOn.value)
+                    val localVid = r.localParticipant.getTrackPublication(Track.Source.CAMERA)?.track as? VideoTrack
+                    _localVideoTrack.value = localVid
+                } catch (pe: Exception) {
+                    Log.w(tag, "Initial media setup warning: ${pe.message}")
+                }
             }
 
             Result.success(true)
         } catch (e: Exception) {
-            Log.e(tag, "Failed to connect to LiveKit Room: ${e.message}", e)
+            val liveKitError = if (e is LiveKitError) e else LiveKitError.RoomConnectionFailed(e.message ?: "Connection failed", e)
+            Log.e(tag, "LiveKit connect error [${liveKitError.code}]: ${liveKitError.message}", liveKitError)
             withContext(Dispatchers.Main) {
                 _isConnecting.value = false
                 _isConnectedToRealRoom.value = false
-                _connectionError.value = e.message ?: "Connection failed"
+                _connectionError.value = "[${liveKitError.code}] ${liveKitError.message}"
                 _connectionQuality.value = ConnectionQualityLevel.DISCONNECTED
             }
-            Result.failure(e)
+            Result.failure(liveKitError)
         }
     }
 
@@ -755,76 +807,236 @@ class LiveKitClassService(
         }
     }
 
-    private fun fetchTokenFromBackend(endpoint: String, classId: String, participantName: String): String {
-        val urlWithParams = "$endpoint?classId=$classId&participantName=$participantName"
+}
+
+/**
+ * LiveKit Token Source Abstraction.
+ * Encapsulates token retrieval for Development Token Server, Backend Endpoints, or Literal tokens.
+ */
+sealed interface LiveKitTokenSource {
+    suspend fun fetch(
+        roomName: String,
+        participantName: String,
+        participantIdentity: String
+    ): TokenSourceResponse
+
+    companion object {
+        fun fromDevelopmentTokenServer(
+            tokenServerId: String,
+            okHttpClient: OkHttpClient = OkHttpClient()
+        ): LiveKitTokenSource = DevelopmentTokenServerTokenSource(tokenServerId, okHttpClient)
+
+        fun fromEndpoint(
+            endpointUrl: String,
+            okHttpClient: OkHttpClient = OkHttpClient()
+        ): LiveKitTokenSource = EndpointTokenSource(endpointUrl, okHttpClient)
+
+        fun fromLiteral(
+            serverUrl: String,
+            participantToken: String
+        ): LiveKitTokenSource = LiteralTokenSource(serverUrl, participantToken)
+    }
+}
+
+/**
+ * Development Token Server TokenSource.
+ * Connects securely to the official LiveKit Cloud Development Token Server.
+ */
+class DevelopmentTokenServerTokenSource(
+    private val tokenServerId: String,
+    private val client: OkHttpClient
+) : LiveKitTokenSource {
+
+    override suspend fun fetch(
+        roomName: String,
+        participantName: String,
+        participantIdentity: String
+    ): TokenSourceResponse = withContext(Dispatchers.IO) {
+        if (tokenServerId.isBlank()) {
+            throw LiveKitError.InvalidConfiguration("Development Token Server ID is missing.")
+        }
+
+        val jsonBody = JSONObject().apply {
+            put("room_name", roomName)
+            put("participant_name", participantName)
+            put("participant_identity", participantIdentity)
+        }
+        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+        val requestBody = jsonBody.toString().toRequestBody(mediaType)
+
+        val request = Request.Builder()
+            .url(DEV_TOKEN_SERVER_ENDPOINT)
+            .header("X-Sandbox-ID", tokenServerId.trim())
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .post(requestBody)
+            .build()
+
+        val response = try {
+            client.newCall(request).execute()
+        } catch (e: java.io.IOException) {
+            throw LiveKitError.NetworkError("Network request to Development Token Server failed: ${e.message}", e)
+        } catch (e: Exception) {
+            throw LiveKitError.TokenFetchFailed("Could not connect to Development Token Server: ${e.message}", e)
+        }
+
+        response.use { resp ->
+            val responseBody = resp.body?.string() ?: ""
+            if (!resp.isSuccessful) {
+                val errorMsg = try {
+                    JSONObject(responseBody).optString("message", resp.message)
+                } catch (_: Exception) {
+                    resp.message
+                }
+                throw LiveKitError.TokenServerError("Development Token Server error [HTTP ${resp.code}]: $errorMsg")
+            }
+
+            try {
+                val json = JSONObject(responseBody)
+                val token = json.optString("participantToken")
+                    .ifBlank { json.optString("token") }
+                    .ifBlank { json.optString("jwt") }
+
+                if (token.isBlank()) {
+                    throw LiveKitError.TokenFetchFailed("Development Token Server returned empty token.")
+                }
+
+                val serverUrl = json.optString("serverUrl")
+                TokenSourceResponse(
+                    serverUrl = serverUrl,
+                    participantToken = token,
+                    roomName = json.optString("roomName", roomName),
+                    participantName = json.optString("participantName", participantName)
+                )
+            } catch (e: Exception) {
+                if (e is LiveKitError) throw e
+                throw LiveKitError.TokenFetchFailed("Failed to parse token credentials: ${e.message}", e)
+            }
+        }
+    }
+
+    companion object {
+        const val DEV_TOKEN_SERVER_ENDPOINT = "https://cloud-api.livekit.io/api/sandbox/connection-details"
+    }
+}
+
+/**
+ * Production Endpoint TokenSource.
+ * Queries custom backend service for signed JWT tokens.
+ */
+class EndpointTokenSource(
+    private val endpointUrl: String,
+    private val client: OkHttpClient
+) : LiveKitTokenSource {
+
+    override suspend fun fetch(
+        roomName: String,
+        participantName: String,
+        participantIdentity: String
+    ): TokenSourceResponse = withContext(Dispatchers.IO) {
+        if (endpointUrl.isBlank()) {
+            throw LiveKitError.InvalidConfiguration("Backend Token Endpoint URL is missing.")
+        }
+
+        val urlWithParams = if (endpointUrl.contains("?")) {
+            "$endpointUrl&room=$roomName&identity=$participantIdentity&name=$participantName"
+        } else {
+            "$endpointUrl?room=$roomName&identity=$participantIdentity&name=$participantName"
+        }
+
         val request = Request.Builder()
             .url(urlWithParams)
+            .header("Accept", "application/json")
             .get()
             .build()
 
-        val response = okHttpClient.newCall(request).execute()
-        if (!response.isSuccessful) {
-            throw IllegalStateException("Failed to fetch token from backend: HTTP ${response.code}")
-        }
-        val body = response.body?.string() ?: throw IllegalStateException("Empty response body from token endpoint")
-        val json = JSONObject(body)
-        return json.optString("token").ifBlank {
-            json.optString("jwt")
-        }
-    }
-
-    private fun fetchDevSandboxToken(
-        sandboxId: String,
-        roomName: String,
-        participantName: String,
-        serverUrl: String
-    ): String {
-        val payload = JSONObject().apply {
-            put("sandboxId", sandboxId)
-            put("roomName", roomName)
-            put("participantName", participantName)
-            put("serverUrl", serverUrl)
+        val response = try {
+            client.newCall(request).execute()
+        } catch (e: java.io.IOException) {
+            throw LiveKitError.NetworkError("Failed to reach Backend Token Endpoint: ${e.message}", e)
         }
 
-        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
-        val requestBody = payload.toString().toRequestBody(mediaType)
+        response.use { resp ->
+            val responseBody = resp.body?.string() ?: ""
+            if (!resp.isSuccessful) {
+                throw LiveKitError.TokenServerError("Backend Token Endpoint error [HTTP ${resp.code}]: $responseBody")
+            }
 
-        val sandboxUrls = listOf(
-            "https://cloud-api.livekit.io/api/sandbox/tokens",
-            "https://cloud.livekit.io/api/sandbox/tokens",
-            "https://api.livekit.io/api/sandbox/tokens"
-        )
-
-        var lastError: Exception? = null
-        for (url in sandboxUrls) {
             try {
-                val request = Request.Builder()
-                    .url(url)
-                    .post(requestBody)
-                    .header("Accept", "application/json")
-                    .header("Content-Type", "application/json")
-                    .build()
+                val json = JSONObject(responseBody)
+                val token = json.optString("participantToken")
+                    .ifBlank { json.optString("token") }
+                    .ifBlank { json.optString("jwt") }
+                val serverUrl = json.optString("serverUrl")
 
-                val response = okHttpClient.newCall(request).execute()
-                if (response.isSuccessful) {
-                    val body = response.body?.string() ?: continue
-                    val json = JSONObject(body)
-                    val token = json.optString("token")
-                        .ifBlank { json.optString("jwt") }
-                        .ifBlank { json.optString("accessToken") }
-                    if (token.isNotBlank()) {
-                        return token
-                    }
-                }
-            } catch (e: Exception) {
-                lastError = e
-                Log.w(tag, "Sandbox token request to $url failed: ${e.message}")
+                TokenSourceResponse(
+                    serverUrl = serverUrl,
+                    participantToken = token.ifBlank { responseBody.trim() },
+                    roomName = json.optString("roomName", roomName),
+                    participantName = json.optString("participantName", participantName)
+                )
+            } catch (_: Exception) {
+                TokenSourceResponse(
+                    serverUrl = "",
+                    participantToken = responseBody.trim(),
+                    roomName = roomName,
+                    participantName = participantName
+                )
             }
         }
+    }
+}
 
-        throw IllegalStateException(
-            "Unable to obtain development token from LiveKit Server ($sandboxId). " +
-                    (lastError?.message ?: "Please check internet connection or provide custom token.")
+/**
+ * Literal TokenSource.
+ * Directly provides pre-generated token for test environments.
+ */
+class LiteralTokenSource(
+    private val serverUrl: String,
+    private val participantToken: String
+) : LiveKitTokenSource {
+
+    override suspend fun fetch(
+        roomName: String,
+        participantName: String,
+        participantIdentity: String
+    ): TokenSourceResponse {
+        if (participantToken.isBlank()) {
+            throw LiveKitError.InvalidConfiguration("Provided JWT Token is empty.")
+        }
+        return TokenSourceResponse(
+            serverUrl = serverUrl,
+            participantToken = participantToken,
+            roomName = roomName,
+            participantName = participantName
         )
     }
+}
+
+/**
+ * Structured response containing token credentials.
+ */
+data class TokenSourceResponse(
+    val serverUrl: String,
+    val participantToken: String,
+    val roomName: String? = null,
+    val participantName: String? = null
+)
+
+/**
+ * Structured LiveKit error hierarchy.
+ */
+sealed class LiveKitError(val code: String, message: String, cause: Throwable? = null) : Exception(message, cause) {
+    class InvalidConfiguration(message: String = "LiveKit Server URL or Token Server ID is missing.") :
+        LiveKitError("INVALID_CONFIGURATION", message)
+    class NetworkError(message: String = "Unable to reach LiveKit server. Please check internet connection.", cause: Throwable? = null) :
+        LiveKitError("NETWORK_ERROR", message, cause)
+    class TokenServerError(message: String = "LiveKit Development Token Server rejected the request.", cause: Throwable? = null) :
+        LiveKitError("TOKEN_SERVER_ERROR", message, cause)
+    class TokenFetchFailed(message: String = "Failed to obtain room credentials.", cause: Throwable? = null) :
+        LiveKitError("TOKEN_FETCH_FAILED", message, cause)
+    class RoomConnectionFailed(message: String = "Failed to establish LiveKit room connection.", cause: Throwable? = null) :
+        LiveKitError("ROOM_CONNECTION_FAILED", message, cause)
+    class PermissionDenied(message: String = "Microphone or camera permission was not granted.") :
+        LiveKitError("PERMISSION_DENIED", message)
 }

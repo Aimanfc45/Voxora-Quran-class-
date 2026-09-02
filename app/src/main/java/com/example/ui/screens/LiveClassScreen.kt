@@ -117,6 +117,7 @@ fun LiveClassScreen(
 
     // Config dialog state inputs
     var configServerUrl by remember { mutableStateOf(currentConfig.serverUrl) }
+    var configDevTokenServerId by remember { mutableStateOf(currentConfig.devTokenServerId) }
     var configTokenEndpoint by remember { mutableStateOf(currentConfig.tokenEndpoint) }
     var configDevToken by remember { mutableStateOf(currentConfig.devToken) }
 
@@ -702,9 +703,18 @@ fun LiveClassScreen(
                     )
 
                     OutlinedTextField(
+                        value = configDevTokenServerId,
+                        onValueChange = { configDevTokenServerId = it },
+                        label = { Text("Development Token Server ID") },
+                        placeholder = { Text("voxoraquranclass-1pdkmx") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
                         value = configTokenEndpoint,
                         onValueChange = { configTokenEndpoint = it },
-                        label = { Text("Backend Token Endpoint") },
+                        label = { Text("Backend Token Endpoint (Production)") },
                         placeholder = { Text("https://api.voxora.app/livekit/token") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -713,7 +723,7 @@ fun LiveClassScreen(
                     OutlinedTextField(
                         value = configDevToken,
                         onValueChange = { configDevToken = it },
-                        label = { Text("Development JWT Token (Optional)") },
+                        label = { Text("Literal JWT Token (Optional override)") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -724,6 +734,7 @@ fun LiveClassScreen(
                     onClick = {
                         liveKitService.updateConfig(
                             serverUrl = configServerUrl,
+                            devTokenServerId = configDevTokenServerId,
                             tokenEndpoint = configTokenEndpoint,
                             devToken = configDevToken
                         )
