@@ -119,22 +119,22 @@ class QuranAudioPlayerEngine(
             return matchedFolder
         }
 
-        // 3. Fallback name keyword checks with clear precedence
+        // 3. Fallback name keyword checks with clear precedence (Specific Qaris evaluated first)
         return when {
             trimmed.contains("Sudais", ignoreCase = true) -> "Abdurrahmaan_As-Sudais_192kbps"
             trimmed.contains("Juhan", ignoreCase = true) -> "Abdullaah_3awwaad_Al-Juhaynee_128kbps"
-            trimmed.contains("Abdul Basit", ignoreCase = true) || trimmed.contains("Abdus-Samad", ignoreCase = true) -> "Abdul_Basit_Murattal_192kbps"
+            trimmed.contains("Abdul Basit", ignoreCase = true) || trimmed.contains("Abdus-Samad", ignoreCase = true) || trimmed.contains("Basit", ignoreCase = true) -> "Abdul_Basit_Murattal_192kbps"
             trimmed.contains("Husary", ignoreCase = true) || trimmed.contains("Hussary", ignoreCase = true) -> "Husary_128kbps"
             trimmed.contains("Minshawi", ignoreCase = true) || trimmed.contains("Minshawy", ignoreCase = true) -> "Minshawy_Murattal_128kbps"
             trimmed.contains("Ghamdi", ignoreCase = true) || trimmed.contains("Ghamadi", ignoreCase = true) -> "Ghamadi_40kbps"
-            trimmed.contains("Muaiqly", ignoreCase = true) -> "Maher_AlMuaiqly_64kbps"
+            trimmed.contains("Muaiqly", ignoreCase = true) || trimmed.contains("Mu'aiqly", ignoreCase = true) -> "Maher_AlMuaiqly_64kbps"
             trimmed.contains("Dosari", ignoreCase = true) || trimmed.contains("Dussary", ignoreCase = true) -> "Yasser_Ad-Dussary_128kbps"
             trimmed.contains("Qatami", ignoreCase = true) -> "Nasser_Alqatami_128kbps"
             trimmed.contains("Shuraim", ignoreCase = true) || trimmed.contains("Shuraym", ignoreCase = true) -> "Saood_ash-Shuraym_128kbps"
             trimmed.contains("Shatri", ignoreCase = true) || trimmed.contains("Shaatree", ignoreCase = true) -> "Abu_Bakr_Ash-Shaatree_128kbps"
             trimmed.contains("Ali Jaber", ignoreCase = true) -> "Ali_Jaber_64kbps"
             trimmed.contains("Alafasy", ignoreCase = true) || trimmed.contains("Mishary", ignoreCase = true) -> "Alafasy_128kbps"
-            else -> "Alafasy_128kbps" // Default: Sheikh Mishary Rashid Alafasy
+            else -> "Alafasy_128kbps"
         }
     }
 
@@ -150,7 +150,7 @@ class QuranAudioPlayerEngine(
     }
 
     override fun playVerse(surahNumber: Int, verseNumber: Int) {
-        val currentReciter = _audioState.value.reciterName
+        val currentReciter = _audioState.value.reciterId.ifBlank { _audioState.value.reciterName }
         val audioUrl = buildVerifiedAudioUrl(surahNumber, verseNumber, currentReciter)
 
         _audioState.update {
@@ -321,19 +321,35 @@ class QuranAudioPlayerEngine(
     }
 
     override fun setReciter(reciterName: String) {
-        _audioState.update { it.copy(reciterName = reciterName, isPreviewPlaying = false, previewReciterName = null) }
+        val found = com.example.data.mock.MockQuranData.reciterList.find {
+            it.id.equals(reciterName.trim(), ignoreCase = true) ||
+            it.name.equals(reciterName.trim(), ignoreCase = true) ||
+            it.audioFolder.equals(reciterName.trim(), ignoreCase = true)
+        }
+        val verifiedName = found?.name ?: reciterName
+        val verifiedId = found?.id ?: "alafasy"
+
+        _audioState.update { it.copy(reciterName = verifiedName, reciterId = verifiedId, isPreviewPlaying = false, previewReciterName = null) }
         if (_audioState.value.isPlaying) {
             val state = _audioState.value
             playVerse(state.surahNumber, state.verseNumber)
         }
     }
 
-    fun previewReciterAudio(reciterName: String) {
-        val previewUrl = buildVerifiedAudioUrl(1, 1, reciterName)
+    fun previewReciterAudio(reciterKeyOrName: String) {
+        val found = com.example.data.mock.MockQuranData.reciterList.find {
+            it.id.equals(reciterKeyOrName.trim(), ignoreCase = true) ||
+            it.name.equals(reciterKeyOrName.trim(), ignoreCase = true) ||
+            it.audioFolder.equals(reciterKeyOrName.trim(), ignoreCase = true)
+        }
+        val folder = found?.audioFolder ?: getReciterFolder(reciterKeyOrName)
+        val previewUrl = "https://everyayah.com/data/$folder/001001.mp3"
+        val displayName = found?.name ?: reciterKeyOrName
+
         _audioState.update {
             it.copy(
                 isPreviewPlaying = true,
-                previewReciterName = reciterName,
+                previewReciterName = displayName,
                 isLoading = true,
                 errorMessage = null
             )

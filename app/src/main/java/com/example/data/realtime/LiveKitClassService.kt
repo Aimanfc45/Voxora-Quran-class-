@@ -92,11 +92,11 @@ class LiveKitClassService(
     val classMode: StateFlow<ClassType> = _classMode.asStateFlow()
 
     // Room Participants
-    private val _participants = MutableStateFlow<List<Participant>>(MockClassData.initialParticipants)
+    private val _participants = MutableStateFlow<List<Participant>>(emptyList())
     val participants: StateFlow<List<Participant>> = _participants.asStateFlow()
 
     // Chat messages
-    private val _chatMessages = MutableStateFlow<List<ClassChatMessage>>(MockClassData.initialChatMessages)
+    private val _chatMessages = MutableStateFlow<List<ClassChatMessage>>(emptyList())
     val chatMessages: StateFlow<List<ClassChatMessage>> = _chatMessages.asStateFlow()
 
     // Synchronized Quran Sheet State
@@ -236,12 +236,11 @@ class LiveKitClassService(
         val currentConfig = _config.value
 
         if (!currentConfig.isConfigured) {
-            // Unconfigured mode: operate in Interactive Prototype Sandbox
             withContext(Dispatchers.Main) {
                 _isConnecting.value = false
                 _isConnectedToRealRoom.value = false
                 _connectionQuality.value = ConnectionQualityLevel.UNCONFIGURED
-                _participants.value = MockClassData.initialParticipants
+                _participants.value = emptyList()
             }
             return@withContext Result.success(true)
         }
@@ -354,6 +353,32 @@ class LiveKitClassService(
             // Update local prototype state
             _participants.update { list ->
                 list.map { if (it.id == "p_1") it.copy(isVideoOn = newVideo) else it }
+            }
+        }
+    }
+
+    private val _isFrontCamera = MutableStateFlow(true)
+    val isFrontCamera: StateFlow<Boolean> = _isFrontCamera.asStateFlow()
+
+    fun flipCamera() {
+        val nextState = !_isFrontCamera.value
+        _isFrontCamera.value = nextState
+        val r = room ?: return
+        if (_isConnectedToRealRoom.value) {
+            coroutineScope.launch {
+                try {
+                    val track = r.localParticipant.getTrackPublication(Track.Source.CAMERA)?.track as? LocalVideoTrack
+                    // LiveKit handles camera flipping or restarting
+                    track?.let {
+                        // Switch camera or toggle device
+                        r.localParticipant.setCameraEnabled(false)
+                        r.localParticipant.setCameraEnabled(true)
+                        val updatedTrack = r.localParticipant.getTrackPublication(Track.Source.CAMERA)?.track as? VideoTrack
+                        _localVideoTrack.value = updatedTrack
+                    }
+                } catch (e: Exception) {
+                    Log.e(tag, "Error flipping camera: ${e.message}")
+                }
             }
         }
     }

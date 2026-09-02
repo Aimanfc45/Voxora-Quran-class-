@@ -46,9 +46,12 @@ data class ReciterInfo(
     val bitRate: String = "128kbps",
     val isFavorite: Boolean = false,
     val isDefault: Boolean = false,
-    val previewVerseUrl: String = "https://everyayah.com/data/Alafasy_128kbps/001001.mp3",
+    val previewVerseUrl: String = "",
     val description: String = "Certified master Qari with high-fidelity Murattal audio."
-)
+) {
+    val verifiedPreviewUrl: String
+        get() = if (previewVerseUrl.isNotBlank()) previewVerseUrl else "https://everyayah.com/data/$audioFolder/001001.mp3"
+}
 
 data class TajwidRule(
     val id: String,

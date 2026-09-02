@@ -401,15 +401,27 @@ class VoxoraRepository(
     }
 
     fun setAudioReciter(reciter: String) {
+        val found = com.example.data.mock.MockQuranData.reciterList.find {
+            it.id.equals(reciter.trim(), ignoreCase = true) ||
+            it.name.equals(reciter.trim(), ignoreCase = true) ||
+            it.audioFolder.equals(reciter.trim(), ignoreCase = true)
+        }
+        val verifiedName = found?.name ?: reciter
         audioEngine.setReciter(reciter)
-        _quranSettings.update { it.copy(reciterName = reciter, selectedReciter = reciter) }
+        _quranSettings.update { it.copy(reciterName = verifiedName, selectedReciter = verifiedName) }
     }
 
     fun setDefaultReciter(reciterName: String) {
-        _quranSettings.update { it.copy(defaultReciter = reciterName, reciterName = reciterName, selectedReciter = reciterName) }
+        val found = com.example.data.mock.MockQuranData.reciterList.find {
+            it.id.equals(reciterName.trim(), ignoreCase = true) ||
+            it.name.equals(reciterName.trim(), ignoreCase = true) ||
+            it.audioFolder.equals(reciterName.trim(), ignoreCase = true)
+        }
+        val verifiedName = found?.name ?: reciterName
+        _quranSettings.update { it.copy(defaultReciter = verifiedName, reciterName = verifiedName, selectedReciter = verifiedName) }
         audioEngine.setReciter(reciterName)
         _reciters.update { list ->
-            list.map { it.copy(isDefault = (it.name == reciterName)) }
+            list.map { it.copy(isDefault = (it.name == verifiedName || it.id == reciterName)) }
         }
     }
 
@@ -1255,8 +1267,7 @@ class VoxoraRepository(
     }
 
     fun updateSelectedReciter(reciter: String) {
-        _quranSettings.update { it.copy(selectedReciter = reciter, reciterName = reciter) }
-        audioEngine.setReciter(reciter)
+        setAudioReciter(reciter)
     }
 
     fun updateUserProfile(
