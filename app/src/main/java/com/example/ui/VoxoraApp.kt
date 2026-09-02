@@ -26,7 +26,9 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.model.AuthMode
 import com.example.data.model.Teacher
+import com.example.data.model.VoxoraMode
 import com.example.data.repository.AuthRepository
+import com.example.data.repository.EcosystemRepository
 import com.example.data.repository.PrayerTimesRepository
 import com.example.data.repository.VoxoraRepository
 import com.example.ui.components.QuranAudioDetailBottomSheet
@@ -57,7 +59,14 @@ enum class SubScreen {
     PROGRESS_DASHBOARD,
     SALAH_MODE,
     AUTH_SCREEN,
-    ONBOARDING
+    ONBOARDING,
+    DHIKR_MODE,
+    DUA_MODE,
+    RAMADAN_MODE,
+    HAJJ_UMRAH_MODE,
+    MASJID_MODE,
+    CALENDAR_MODE,
+    MODES_HUB
 }
 
 enum class AppFlowState {
@@ -74,6 +83,7 @@ fun VoxoraApp(
     val context = LocalContext.current
     val authRepository = remember { AuthRepository(context = context.applicationContext) }
     val prayerTimesRepository = remember { PrayerTimesRepository(context = context.applicationContext) }
+    val ecosystemRepository = remember { EcosystemRepository() }
 
     var appFlowState by remember { mutableStateOf(AppFlowState.SPLASH) }
     var currentDestination by remember { mutableStateOf(MainDestination.HOME) }
@@ -329,6 +339,99 @@ fun VoxoraApp(
                             onShowSnackbar = showSnackbar
                         )
                     }
+                    SubScreen.DHIKR_MODE -> {
+                        DhikrModeScreen(
+                            ecosystemRepository = ecosystemRepository,
+                            onBack = { currentSubScreen = SubScreen.NONE },
+                            onShowSnackbar = showSnackbar
+                        )
+                    }
+                    SubScreen.DUA_MODE -> {
+                        DuaModeScreen(
+                            ecosystemRepository = ecosystemRepository,
+                            onBack = { currentSubScreen = SubScreen.NONE },
+                            onShowSnackbar = showSnackbar
+                        )
+                    }
+                    SubScreen.RAMADAN_MODE -> {
+                        RamadanModeScreen(
+                            ecosystemRepository = ecosystemRepository,
+                            prayerTimesRepository = prayerTimesRepository,
+                            onBack = { currentSubScreen = SubScreen.NONE },
+                            onNavigateToQuran = {
+                                currentSubScreen = SubScreen.NONE
+                                currentDestination = MainDestination.QURAN
+                            },
+                            onShowSnackbar = showSnackbar
+                        )
+                    }
+                    SubScreen.HAJJ_UMRAH_MODE -> {
+                        HajjUmrahModeScreen(
+                            ecosystemRepository = ecosystemRepository,
+                            onBack = { currentSubScreen = SubScreen.NONE },
+                            onShowSnackbar = showSnackbar
+                        )
+                    }
+                    SubScreen.MASJID_MODE -> {
+                        MasjidModeScreen(
+                            ecosystemRepository = ecosystemRepository,
+                            onBack = { currentSubScreen = SubScreen.NONE },
+                            onShowSnackbar = showSnackbar
+                        )
+                    }
+                    SubScreen.CALENDAR_MODE -> {
+                        IslamicCalendarModeScreen(
+                            ecosystemRepository = ecosystemRepository,
+                            onBack = { currentSubScreen = SubScreen.NONE },
+                            onShowSnackbar = showSnackbar
+                        )
+                    }
+                    SubScreen.MODES_HUB -> {
+                        ModesHubScreen(
+                            onSelectMode = { mode ->
+                                when (mode) {
+                                    VoxoraMode.HOME -> {
+                                        currentSubScreen = SubScreen.NONE
+                                        currentDestination = MainDestination.HOME
+                                    }
+                                    VoxoraMode.QURAN -> {
+                                        currentSubScreen = SubScreen.NONE
+                                        currentDestination = MainDestination.QURAN
+                                    }
+                                    VoxoraMode.SALAH -> {
+                                        currentSubScreen = SubScreen.SALAH_MODE
+                                    }
+                                    VoxoraMode.LEARNING -> {
+                                        currentSubScreen = SubScreen.NONE
+                                        currentDestination = MainDestination.CLASSES
+                                    }
+                                    VoxoraMode.DHIKR -> {
+                                        currentSubScreen = SubScreen.DHIKR_MODE
+                                    }
+                                    VoxoraMode.DUA -> {
+                                        currentSubScreen = SubScreen.DUA_MODE
+                                    }
+                                    VoxoraMode.RAMADAN -> {
+                                        currentSubScreen = SubScreen.RAMADAN_MODE
+                                    }
+                                    VoxoraMode.HAJJ_UMRAH -> {
+                                        currentSubScreen = SubScreen.HAJJ_UMRAH_MODE
+                                    }
+                                    VoxoraMode.MASJID -> {
+                                        currentSubScreen = SubScreen.MASJID_MODE
+                                    }
+                                    VoxoraMode.CALENDAR -> {
+                                        currentSubScreen = SubScreen.CALENDAR_MODE
+                                    }
+                                    VoxoraMode.PROFILE -> {
+                                        currentSubScreen = SubScreen.NONE
+                                        currentDestination = MainDestination.PROFILE
+                                    }
+                                }
+                            },
+                            onShowSnackbar = showSnackbar
+                        )
+                    }
                     SubScreen.LIVE_CLASS -> {
                         LiveClassScreen(
                             repository = repository,
@@ -389,6 +492,27 @@ fun VoxoraApp(
                                     },
                                     onNavigateToAuth = {
                                         currentSubScreen = SubScreen.AUTH_SCREEN
+                                    },
+                                    onNavigateToDhikr = {
+                                        currentSubScreen = SubScreen.DHIKR_MODE
+                                    },
+                                    onNavigateToDua = {
+                                        currentSubScreen = SubScreen.DUA_MODE
+                                    },
+                                    onNavigateToRamadan = {
+                                        currentSubScreen = SubScreen.RAMADAN_MODE
+                                    },
+                                    onNavigateToHajjUmrah = {
+                                        currentSubScreen = SubScreen.HAJJ_UMRAH_MODE
+                                    },
+                                    onNavigateToMasjid = {
+                                        currentSubScreen = SubScreen.MASJID_MODE
+                                    },
+                                    onNavigateToCalendar = {
+                                        currentSubScreen = SubScreen.CALENDAR_MODE
+                                    },
+                                    onNavigateToModesHub = {
+                                        currentSubScreen = SubScreen.MODES_HUB
                                     }
                                 )
                             }

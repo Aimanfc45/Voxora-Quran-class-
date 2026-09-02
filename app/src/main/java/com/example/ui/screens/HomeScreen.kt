@@ -49,6 +49,13 @@ fun HomeScreen(
     onShowSnackbar: (String) -> Unit,
     onNavigateToSalahMode: () -> Unit = {},
     onNavigateToAuth: () -> Unit = {},
+    onNavigateToDhikr: () -> Unit = {},
+    onNavigateToDua: () -> Unit = {},
+    onNavigateToRamadan: () -> Unit = {},
+    onNavigateToHajjUmrah: () -> Unit = {},
+    onNavigateToMasjid: () -> Unit = {},
+    onNavigateToCalendar: () -> Unit = {},
+    onNavigateToModesHub: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val user by repository.userProfile.collectAsState()
@@ -196,6 +203,137 @@ fun HomeScreen(
                     onViewAllPrayerTimes = { showPrayerScheduleDialog = true },
                     onOpenSalahMode = onNavigateToSalahMode
                 )
+            }
+
+            // 2b. VOXORA Muslim Centre Modes Showcase
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "MUSLIM CENTRE MODES",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    letterSpacing = 1.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = Emerald700
+                            )
+                            Text(
+                                text = "Spiritual Ecosystem",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        TextButton(
+                            onClick = onNavigateToModesHub,
+                            colors = ButtonDefaults.textButtonColors(contentColor = Emerald700)
+                        ) {
+                            Text("All 10 Modes", fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        item {
+                            EcosystemModeCard(
+                                emoji = "📖",
+                                title = "Reading Quran",
+                                tag = "Recite & Audio",
+                                onClick = onNavigateToQuran,
+                                testTag = "mode_card_quran"
+                            )
+                        }
+                        item {
+                            EcosystemModeCard(
+                                emoji = "🕌",
+                                title = "Salah Mode",
+                                tag = "Prayer Times",
+                                onClick = onNavigateToSalahMode,
+                                testTag = "mode_card_salah"
+                            )
+                        }
+                        item {
+                            EcosystemModeCard(
+                                emoji = "📿",
+                                title = "Dhikr Mode",
+                                tag = "Digital Tasbih",
+                                onClick = onNavigateToDhikr,
+                                testTag = "mode_card_dhikr"
+                            )
+                        }
+                        item {
+                            EcosystemModeCard(
+                                emoji = "🤲",
+                                title = "Dua Mode",
+                                tag = "Supplications",
+                                onClick = onNavigateToDua,
+                                testTag = "mode_card_dua"
+                            )
+                        }
+                        item {
+                            EcosystemModeCard(
+                                emoji = "🌙",
+                                title = "Ramadan Mode",
+                                tag = "Imsak & Iftar",
+                                onClick = onNavigateToRamadan,
+                                testTag = "mode_card_ramadan"
+                            )
+                        }
+                        item {
+                            EcosystemModeCard(
+                                emoji = "🕋",
+                                title = "Hajj & Umrah",
+                                tag = "Pilgrim Guide",
+                                onClick = onNavigateToHajjUmrah,
+                                testTag = "mode_card_hajj_umrah"
+                            )
+                        }
+                        item {
+                            EcosystemModeCard(
+                                emoji = "🏛️",
+                                title = "Masjid Mode",
+                                tag = "Find Mosque",
+                                onClick = onNavigateToMasjid,
+                                testTag = "mode_card_masjid"
+                            )
+                        }
+                        item {
+                            EcosystemModeCard(
+                                emoji = "📅",
+                                title = "Islamic Calendar",
+                                tag = "1448 AH Dates",
+                                onClick = onNavigateToCalendar,
+                                testTag = "mode_card_calendar"
+                            )
+                        }
+                        item {
+                            EcosystemModeCard(
+                                emoji = "🎓",
+                                title = "Learning Mode",
+                                tag = "Quran Academy",
+                                onClick = onNavigateToClasses,
+                                testTag = "mode_card_learning"
+                            )
+                        }
+                    }
+                }
             }
 
             // 3. Continue Learning Card
@@ -823,3 +961,61 @@ private fun TeacherHomeCard(
         }
     }
 }
+
+@Composable
+fun EcosystemModeCard(
+    emoji: String,
+    title: String,
+    tag: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    testTag: String = ""
+) {
+    Card(
+        modifier = modifier
+            .width(140.dp)
+            .clickable { onClick() }
+            .testTag(testTag),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Emerald100),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = emoji, fontSize = 20.sp)
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Text(
+                text = tag,
+                style = MaterialTheme.typography.labelSmall,
+                color = Emerald700,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                fontSize = 11.sp
+            )
+        }
+    }
+}
+
