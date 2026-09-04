@@ -51,6 +51,7 @@ import com.example.data.realtime.ClassroomRole
 import com.example.data.realtime.ConnectionQualityLevel
 import com.example.data.realtime.LiveKitClassService
 import com.example.data.realtime.QuranSyncPacket
+import com.example.data.repository.AuthRepository
 import com.example.data.repository.VoxoraRepository
 import com.example.ui.components.LiveKitVideoRenderer
 import com.example.ui.components.TajwidRuleBadge
@@ -61,7 +62,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun LiveClassScreen(
     repository: VoxoraRepository,
+    authRepository: AuthRepository? = null,
     onLeaveClass: () -> Unit,
+    onNavigateToAuth: () -> Unit = {},
     onShowSnackbar: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -99,6 +102,8 @@ fun LiveClassScreen(
 
     val userProfile by repository.userProfile.collectAsState()
     val liveClass by repository.liveClass.collectAsState()
+    val authUser by (authRepository?.currentUser ?: kotlinx.coroutines.flow.MutableStateFlow(null)).collectAsState()
+    val isGuest = authRepository?.isAuthenticated() == false || (authUser?.isGuest == true)
 
     // UI Dialog & Sheet states
     var showChatSheet by remember { mutableStateOf(false) }
@@ -138,10 +143,18 @@ fun LiveClassScreen(
 
     // Connect to room on entry, disconnect on exit
     LaunchedEffect(Unit) {
+        val pName = authUser?.name?.ifBlank { null } ?: userProfile.name.ifBlank { "Student" }
+        val pId = authUser?.id?.ifBlank { null } ?: "student_${System.currentTimeMillis()}"
+        val pRole = if (authUser?.name?.contains("Teacher", ignoreCase = true) == true || authUser?.name?.contains("Ustaz", ignoreCase = true) == true) {
+            ClassroomRole.TEACHER
+        } else {
+            ClassroomRole.STUDENT
+        }
         liveKitService.joinClass(
             classId = liveClass.id,
-            participantName = userProfile.name.ifBlank { "Student" },
-            role = ClassroomRole.STUDENT
+            participantName = pName,
+            participantIdentity = pId,
+            role = pRole
         )
     }
 
@@ -230,6 +243,53 @@ fun LiveClassScreen(
                 .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // Guest Attendance Notice
+            if (isGuest) {
+                item {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Emerald900.copy(alpha = 0.85f),
+                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("🎓", fontSize = 16.sp)
+                                Column {
+                                    Text(
+                                        text = "Attending as Guest",
+                                        fontWeight = FontWeight.Bold,
+                                        color = GoldLight,
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = "Sign in to earn Tajwid recitation certificates & attendance credit.",
+                                        color = Emerald200,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                            TextButton(
+                                onClick = onNavigateToAuth,
+                                colors = ButtonDefaults.textButtonColors(contentColor = GoldPrimary)
+                            ) {
+                                Text("Sign In", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
             // Hand Raise Alert banner for Teacher
             if (currentRole == ClassroomRole.TEACHER && handRaiseAlert != null) {
                 item {
@@ -594,7 +654,7 @@ fun LiveClassScreen(
             messages = chatMessages,
             myRole = currentRole,
             onSendMessage = { text ->
-                val myName = userProfile.name.ifBlank { "Student" }
+                val myName = authUser?.name?.ifBlank { null } ?: userProfile.name.ifBlank { "Student" }
                 liveKitService.sendChatMessage(text, myName)
             },
             onDismiss = { showChatSheet = false }

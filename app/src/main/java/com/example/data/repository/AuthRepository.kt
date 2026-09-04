@@ -92,6 +92,10 @@ class AuthRepository(
         )
     }
 
+    fun isAuthenticated(): Boolean {
+        return _authMode.value == AuthMode.AUTHENTICATED && _currentUser.value != null && !_currentUser.value!!.isGuest
+    }
+
     fun isOnboardingCompleted(): Boolean {
         return prefs?.getBoolean(KEY_ONBOARDING_COMPLETED, false) ?: false
     }

@@ -435,7 +435,9 @@ fun VoxoraApp(
                     SubScreen.LIVE_CLASS -> {
                         LiveClassScreen(
                             repository = repository,
+                            authRepository = authRepository,
                             onLeaveClass = { currentSubScreen = SubScreen.NONE },
+                            onNavigateToAuth = { currentSubScreen = SubScreen.AUTH_SCREEN },
                             onShowSnackbar = showSnackbar
                         )
                     }

@@ -58,6 +58,9 @@ class LiveKitClassService(
     private val _isConnecting = MutableStateFlow(false)
     val isConnecting: StateFlow<Boolean> = _isConnecting.asStateFlow()
 
+    private var localParticipantIdentity: String = ""
+    private var localParticipantName: String = ""
+
     private val _isConnectedToRealRoom = MutableStateFlow(false)
     val isConnectedToRealRoom: StateFlow<Boolean> = _isConnectedToRealRoom.asStateFlow()
 
@@ -172,8 +175,11 @@ class LiveKitClassService(
                     }
                     is RoomEvent.TrackSubscribed -> {
                         if (event.track is VideoTrack) {
-                            if (event.participant.identity?.value?.contains("teacher", ignoreCase = true) == true ||
-                                event.participant.name?.contains("Ustaz", ignoreCase = true) == true) {
+                            val isTeacher = event.participant.identity?.value?.contains("teacher", ignoreCase = true) == true ||
+                                event.participant.name?.contains("Ustaz", ignoreCase = true) == true ||
+                                event.participant.name?.contains("Teacher", ignoreCase = true) == true ||
+                                event.participant.metadata?.contains("teacher", ignoreCase = true) == true
+                            if (isTeacher || _teacherVideoTrack.value == null) {
                                 _teacherVideoTrack.value = event.track as VideoTrack
                             }
                         }
@@ -246,6 +252,8 @@ class LiveKitClassService(
         role: ClassroomRole = _myRole.value
     ): Result<Boolean> = withContext(Dispatchers.IO) {
         _myRole.value = role
+        localParticipantName = participantName
+        localParticipantIdentity = participantIdentity
         val currentConfig = _config.value
 
         if (!currentConfig.isConfigured) {
@@ -443,10 +451,13 @@ class LiveKitClassService(
         val newRaised = !_isHandRaised.value
         _isHandRaised.value = newRaised
 
+        val myId = room?.localParticipant?.sid?.value ?: localParticipantIdentity.ifBlank { "local_p" }
+        val myName = localParticipantName.ifBlank { "Student" }
+
         val packet = HandRaisePacket(
             type = "hand_raise",
-            participantId = "p_1",
-            participantName = "You (Student)",
+            participantId = myId,
+            participantName = myName,
             isRaised = newRaised,
             status = if (newRaised) "PENDING" else "DISMISSED"
         )
@@ -454,7 +465,7 @@ class LiveKitClassService(
         publishDataPacket(handRaiseAdapter.toJson(packet))
 
         _participants.update { list ->
-            list.map { if (it.id == "p_1") it.copy(isHandRaised = newRaised) else it }
+            list.map { if (it.id == myId || it.id == "local_p" || it.id == room?.localParticipant?.sid?.value) it.copy(isHandRaised = newRaised) else it }
         }
 
         return newRaised
@@ -517,11 +528,12 @@ class LiveKitClassService(
         val timeStr = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())
         val msgId = "msg_${System.currentTimeMillis()}"
         val isTeacher = _myRole.value == ClassroomRole.TEACHER
+        val myId = room?.localParticipant?.sid?.value ?: localParticipantIdentity.ifBlank { "local_p" }
 
         val packet = ChatPacket(
             type = "chat_message",
             id = msgId,
-            senderId = "p_1",
+            senderId = myId,
             senderName = senderName,
             senderRole = if (isTeacher) "Teacher" else "Student",
             message = text.trim(),
@@ -670,6 +682,8 @@ class LiveKitClassService(
             val jsonStr = String(data, Charsets.UTF_8)
             val json = JSONObject(jsonStr)
             val type = json.optString("type")
+            val myId = room?.localParticipant?.sid?.value ?: localParticipantIdentity.ifBlank { "local_p" }
+            val myIdent = room?.localParticipant?.identity?.value ?: localParticipantIdentity
 
             when (type) {
                 "quran_state" -> {
@@ -680,7 +694,7 @@ class LiveKitClassService(
                 }
                 "chat_message" -> {
                     val packet = chatPacketAdapter.fromJson(jsonStr)
-                    if (packet != null && packet.senderId != "p_1") {
+                    if (packet != null && packet.senderId != myId && packet.senderId != myIdent) {
                         val isTeacher = packet.senderRole.contains("Teacher", ignoreCase = true)
                         val msg = ClassChatMessage(
                             id = packet.id,
@@ -727,7 +741,10 @@ class LiveKitClassService(
     }
 
     private fun handleParticipantAction(packet: ParticipantActionPacket) {
-        if (packet.targetParticipantId == "p_1" || packet.targetParticipantId == "all") {
+        val myId = room?.localParticipant?.sid?.value ?: localParticipantIdentity.ifBlank { "local_p" }
+        val myIdent = room?.localParticipant?.identity?.value ?: localParticipantIdentity
+
+        if (packet.targetParticipantId == myId || packet.targetParticipantId == myIdent || packet.targetParticipantId == "all") {
             when {
                 packet.action == "MUTE" -> {
                     _isMicMuted.value = true
@@ -764,10 +781,11 @@ class LiveKitClassService(
 
         // Add local participant
         val local = r.localParticipant
+        val localName = local.name ?: localParticipantName.ifBlank { "You" }
         list.add(
             Participant(
-                id = local.sid?.value ?: "local_p",
-                name = local.name ?: "You",
+                id = local.sid?.value ?: local.identity?.value ?: "local_p",
+                name = localName,
                 isHandRaised = _isHandRaised.value,
                 isMicMuted = !local.isMicrophoneEnabled(),
                 isVideoOn = local.isCameraEnabled(),
@@ -780,7 +798,9 @@ class LiveKitClassService(
         // Add remote participants
         r.remoteParticipants.values.forEach { rp ->
             val isTeacher = rp.identity?.value?.contains("teacher", ignoreCase = true) == true ||
-                    rp.name?.contains("Ustaz", ignoreCase = true) == true
+                    rp.name?.contains("Ustaz", ignoreCase = true) == true ||
+                    rp.name?.contains("Teacher", ignoreCase = true) == true ||
+                    rp.metadata?.contains("teacher", ignoreCase = true) == true
             list.add(
                 Participant(
                     id = rp.sid?.value ?: rp.identity?.value ?: "rp_${rp.hashCode()}",
