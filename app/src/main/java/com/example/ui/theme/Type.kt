@@ -88,3 +88,4 @@ val Typography = Typography(
 )
 
 val ArabicQuranFontFamily = FontFamily.Default
+val ScheherazadeNew = FontFamily.Default

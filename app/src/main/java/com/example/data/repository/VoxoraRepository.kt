@@ -188,21 +188,15 @@ class VoxoraRepository(
     // ----------------------------------------------------
     private val _participants = MutableStateFlow(
         listOf(
-            Participant("p_teacher", "Ustaz Ahmad Al-Azhari", isHandRaised = false, isMicMuted = false, isVideoOn = true, isTeacher = true, role = "Instructor", isSpeaking = true),
-            Participant("p_1", "Ahmed Al-Farsi (You)", isHandRaised = false, isMicMuted = true, isVideoOn = true, isTeacher = false, role = "Student"),
-            Participant("p_2", "Zainab Noor", isHandRaised = true, isMicMuted = true, isVideoOn = true, isTeacher = false, role = "Student"),
-            Participant("p_3", "Tariq Malik", isHandRaised = false, isMicMuted = true, isVideoOn = false, isTeacher = false, role = "Student"),
-            Participant("p_4", "Amina Yusuf", isHandRaised = false, isMicMuted = true, isVideoOn = true, isTeacher = false, role = "Student"),
-            Participant("p_5", "Bilal Siddiqui", isHandRaised = false, isMicMuted = true, isVideoOn = true, isTeacher = false, role = "Student")
+            Participant("p_teacher", "Instructor", isHandRaised = false, isMicMuted = false, isVideoOn = true, isTeacher = true, role = "Instructor", isSpeaking = true),
+            Participant("p_1", "You", isHandRaised = false, isMicMuted = true, isVideoOn = true, isTeacher = false, role = "Student")
         )
     )
     val participants: StateFlow<List<Participant>> = _participants.asStateFlow()
 
     private val _chatMessages = MutableStateFlow(
         listOf(
-            ClassChatMessage("m_1", "Ustaz Ahmad", "Assalamu Alaikum everyone. Welcome to today's Tajwid session on Mad Asli.", "08:00 PM", isTeacher = true),
-            ClassChatMessage("m_2", "Zainab Noor", "Wa Alaikum Assalam Ustaz! Ready.", "08:01 PM"),
-            ClassChatMessage("m_3", "Ahmed Al-Farsi", "Wa Alaikum Assalam Ustaz, excited to learn!", "08:02 PM", isMe = true)
+            ClassChatMessage("m_1", "Instructor", "Assalamu Alaikum everyone. Welcome to the interactive Quran recitation session.", "08:00 PM", isTeacher = true)
         )
     )
     val chatMessages: StateFlow<List<ClassChatMessage>> = _chatMessages.asStateFlow()
@@ -222,7 +216,7 @@ class VoxoraRepository(
     private val _classHighlightedVerse = MutableStateFlow(2)
     val classHighlightedVerse: StateFlow<Int> = _classHighlightedVerse.asStateFlow()
 
-    private val _teacherAnnotation = MutableStateFlow<String?>("Ustaz Ahmad: Notice the 2 counts on Mad Asli in ذَٰلِكَ")
+    private val _teacherAnnotation = MutableStateFlow<String?>("Tajwid Guide: Observe the 2 counts of Mad Asli in the recitation.")
     val teacherAnnotation: StateFlow<String?> = _teacherAnnotation.asStateFlow()
 
     private val _liveClassMode = MutableStateFlow(ClassType.GROUP)
@@ -925,6 +919,25 @@ class VoxoraRepository(
         _userProfile.update { it.copy(avatarEmoji = emoji) }
     }
 
+    fun toggleGoal(goal: String) {
+        _userProfile.update { current ->
+            val updatedGoals = if (current.selectedGoals.contains(goal)) {
+                current.selectedGoals - goal
+            } else {
+                current.selectedGoals + goal
+            }
+            current.copy(selectedGoals = updatedGoals)
+        }
+    }
+
+    fun setGoals(goals: Set<String>) {
+        _userProfile.update { it.copy(selectedGoals = goals) }
+    }
+
+    fun setLastActiveMode(mode: String) {
+        _userProfile.update { it.copy(lastActiveMode = mode) }
+    }
+
     // ====================================================
     // LIVE CLASSROOM ACTIONS
     // ====================================================
@@ -1007,7 +1020,7 @@ class VoxoraRepository(
             id = "cls_custom_${System.currentTimeMillis()}",
             title = title.trim().ifBlank { "Custom Quran Study Circle" },
             subject = subject.trim().ifBlank { "Tajwid & Recitation" },
-            teacher = MockClassData.teacherAhmad,
+            teacher = MockClassData.verifiedInstructor,
             type = type,
             status = ClassStatus.UPCOMING,
             level = level,

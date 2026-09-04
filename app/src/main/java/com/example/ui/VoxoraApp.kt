@@ -1,6 +1,8 @@
 package com.example.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -43,12 +45,13 @@ enum class MainDestination(
     val title: String,
     val filledIcon: ImageVector,
     val outlinedIcon: ImageVector,
-    val testTag: String
+    val testTag: String,
+    val isProminent: Boolean = false
 ) {
     HOME("Home", Icons.Filled.Home, Icons.Outlined.Home, "nav_home"),
-    CLASSES("Classes", Icons.Filled.School, Icons.Outlined.School, "nav_classes"),
     QURAN("Quran", Icons.Filled.AutoStories, Icons.Outlined.AutoStories, "nav_quran"),
-    COMMUNITY("Community", Icons.Filled.Groups, Icons.Outlined.Groups, "nav_community"),
+    CENTRE("Centre", Icons.Filled.Hub, Icons.Outlined.Hub, "nav_centre", isProminent = true),
+    JOURNEY("Journey", Icons.Filled.AutoGraph, Icons.Outlined.AutoGraph, "nav_journey"),
     PROFILE("Profile", Icons.Filled.Person, Icons.Outlined.Person, "nav_profile")
 }
 
@@ -66,7 +69,9 @@ enum class SubScreen {
     HAJJ_UMRAH_MODE,
     MASJID_MODE,
     CALENDAR_MODE,
-    MODES_HUB
+    MODES_HUB,
+    CLASSES_SCREEN,
+    COMMUNITY_SCREEN
 }
 
 enum class AppFlowState {
@@ -110,6 +115,14 @@ fun VoxoraApp(
     val configuration = LocalConfiguration.current
     val isWideScreen = configuration.screenWidthDp >= 720
 
+    // Back handling
+    BackHandler(enabled = currentSubScreen != SubScreen.NONE) {
+        currentSubScreen = SubScreen.NONE
+    }
+    BackHandler(enabled = currentDestination != MainDestination.HOME && currentSubScreen == SubScreen.NONE) {
+        currentDestination = MainDestination.HOME
+    }
+
     // 1. Splash Screen Phase
     if (appFlowState == AppFlowState.SPLASH) {
         SplashScreen(
@@ -121,7 +134,7 @@ fun VoxoraApp(
                     appFlowState = AppFlowState.AUTH
                 } else {
                     val savedUser = authRepository.currentUser.value
-                    if (savedUser != null && !savedUser.isGuest) {
+                    if (savedUser != null) {
                         repository.authenticateUser(savedUser.email, "")
                     } else {
                         repository.continueAsGuestUser()
@@ -207,7 +220,7 @@ fun VoxoraApp(
                         )
                     }
 
-                    // Bottom Navigation Bar on standard mobile layout
+                    // Bottom Navigation Bar on standard mobile layout (Centre prominent!)
                     if (!isWideScreen) {
                         NavigationBar(
                             containerColor = MaterialTheme.colorScheme.surface,
@@ -223,11 +236,30 @@ fun VoxoraApp(
                                         currentDestination = destination
                                     },
                                     icon = {
-                                        Icon(
-                                            imageVector = if (isSelected) destination.filledIcon else destination.outlinedIcon,
-                                            contentDescription = destination.title,
-                                            modifier = Modifier.size(24.dp)
-                                        )
+                                        if (destination.isProminent) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (isSelected) GoldPrimary else Emerald700,
+                                                border = BorderStroke(1.dp, if (isSelected) Emerald700 else GoldPrimary),
+                                                modifier = Modifier.size(38.dp),
+                                                shadowElevation = 4.dp
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = destination.filledIcon,
+                                                        contentDescription = destination.title,
+                                                        tint = if (isSelected) Color.Black else Color.White,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
+                                        } else {
+                                            Icon(
+                                                imageVector = if (isSelected) destination.filledIcon else destination.outlinedIcon,
+                                                contentDescription = destination.title,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
                                     },
                                     label = {
                                         Text(
@@ -240,7 +272,7 @@ fun VoxoraApp(
                                     colors = NavigationBarItemDefaults.colors(
                                         selectedIconColor = Emerald700,
                                         selectedTextColor = Emerald700,
-                                        indicatorColor = Emerald700.copy(alpha = 0.12f),
+                                        indicatorColor = if (destination.isProminent) Color.Transparent else Emerald700.copy(alpha = 0.12f),
                                         unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                         unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                                     ),
@@ -289,16 +321,33 @@ fun VoxoraApp(
                                 currentDestination = destination
                             },
                             icon = {
-                                Icon(
-                                    imageVector = if (isSelected) destination.filledIcon else destination.outlinedIcon,
-                                    contentDescription = destination.title
-                                )
+                                if (destination.isProminent) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isSelected) GoldPrimary else Emerald700,
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = destination.filledIcon,
+                                                contentDescription = destination.title,
+                                                tint = if (isSelected) Color.Black else Color.White,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Icon(
+                                        imageVector = if (isSelected) destination.filledIcon else destination.outlinedIcon,
+                                        contentDescription = destination.title
+                                    )
+                                }
                             },
                             label = { Text(destination.title) },
                             colors = NavigationRailItemDefaults.colors(
                                 selectedIconColor = Emerald700,
                                 selectedTextColor = Emerald700,
-                                indicatorColor = Emerald700.copy(alpha = 0.12f)
+                                indicatorColor = if (destination.isProminent) Color.Transparent else Emerald700.copy(alpha = 0.12f)
                             )
                         )
                     }
@@ -387,7 +436,10 @@ fun VoxoraApp(
                         )
                     }
                     SubScreen.MODES_HUB -> {
-                        ModesHubScreen(
+                        CentreHubScreen(
+                            repository = repository,
+                            prayerTimesRepository = prayerTimesRepository,
+                            ecosystemRepository = ecosystemRepository,
                             onSelectMode = { mode ->
                                 when (mode) {
                                     VoxoraMode.HOME -> {
@@ -402,8 +454,10 @@ fun VoxoraApp(
                                         currentSubScreen = SubScreen.SALAH_MODE
                                     }
                                     VoxoraMode.LEARNING -> {
-                                        currentSubScreen = SubScreen.NONE
-                                        currentDestination = MainDestination.CLASSES
+                                        currentSubScreen = SubScreen.CLASSES_SCREEN
+                                    }
+                                    VoxoraMode.LIVE_CLASS -> {
+                                        currentSubScreen = SubScreen.LIVE_CLASS
                                     }
                                     VoxoraMode.DHIKR -> {
                                         currentSubScreen = SubScreen.DHIKR_MODE
@@ -445,14 +499,49 @@ fun VoxoraApp(
                         TeacherDiscoveryScreen(
                             repository = repository,
                             onBookTeacherSuccess = {
-                                currentSubScreen = SubScreen.NONE
-                                currentDestination = MainDestination.CLASSES
+                                currentSubScreen = SubScreen.CLASSES_SCREEN
                             },
                             onShowSnackbar = showSnackbar
                         )
                     }
                     SubScreen.PROGRESS_DASHBOARD -> {
-                        ProgressScreen(
+                        JourneyScreen(
+                            repository = repository,
+                            prayerTimesRepository = prayerTimesRepository,
+                            ecosystemRepository = ecosystemRepository,
+                            onNavigateToQuran = {
+                                currentSubScreen = SubScreen.NONE
+                                currentDestination = MainDestination.QURAN
+                            },
+                            onNavigateToSalah = {
+                                currentSubScreen = SubScreen.SALAH_MODE
+                            },
+                            onNavigateToDhikr = {
+                                currentSubScreen = SubScreen.DHIKR_MODE
+                            },
+                            onNavigateToLearning = {
+                                currentSubScreen = SubScreen.CLASSES_SCREEN
+                            },
+                            onNavigateToLiveClass = {
+                                currentSubScreen = SubScreen.LIVE_CLASS
+                            },
+                            onShowSnackbar = showSnackbar
+                        )
+                    }
+                    SubScreen.CLASSES_SCREEN -> {
+                        ClassesScreen(
+                            repository = repository,
+                            onJoinLiveClass = {
+                                currentSubScreen = SubScreen.LIVE_CLASS
+                            },
+                            onExploreTeachers = {
+                                currentSubScreen = SubScreen.TEACHER_DISCOVERY
+                            },
+                            onShowSnackbar = showSnackbar
+                        )
+                    }
+                    SubScreen.COMMUNITY_SCREEN -> {
+                        CommunityScreen(
                             repository = repository,
                             onShowSnackbar = showSnackbar
                         )
@@ -463,6 +552,7 @@ fun VoxoraApp(
                                 HomeScreen(
                                     repository = repository,
                                     prayerTimesRepository = prayerTimesRepository,
+                                    ecosystemRepository = ecosystemRepository,
                                     onNavigateToQuran = {
                                         currentDestination = MainDestination.QURAN
                                     },
@@ -470,16 +560,16 @@ fun VoxoraApp(
                                         currentSubScreen = SubScreen.LIVE_CLASS
                                     },
                                     onNavigateToClasses = {
-                                        currentDestination = MainDestination.CLASSES
+                                        currentSubScreen = SubScreen.CLASSES_SCREEN
                                     },
                                     onNavigateToTeachers = {
                                         currentSubScreen = SubScreen.TEACHER_DISCOVERY
                                     },
                                     onNavigateToCommunity = {
-                                        currentDestination = MainDestination.COMMUNITY
+                                        currentSubScreen = SubScreen.COMMUNITY_SCREEN
                                     },
                                     onNavigateToProgress = {
-                                        currentSubScreen = SubScreen.PROGRESS_DASHBOARD
+                                        currentDestination = MainDestination.JOURNEY
                                     },
                                     onNavigateToProfile = {
                                         currentDestination = MainDestination.PROFILE
@@ -514,20 +604,8 @@ fun VoxoraApp(
                                         currentSubScreen = SubScreen.CALENDAR_MODE
                                     },
                                     onNavigateToModesHub = {
-                                        currentSubScreen = SubScreen.MODES_HUB
+                                        currentDestination = MainDestination.CENTRE
                                     }
-                                )
-                            }
-                            MainDestination.CLASSES -> {
-                                ClassesScreen(
-                                    repository = repository,
-                                    onJoinLiveClass = {
-                                        currentSubScreen = SubScreen.LIVE_CLASS
-                                    },
-                                    onExploreTeachers = {
-                                        currentSubScreen = SubScreen.TEACHER_DISCOVERY
-                                    },
-                                    onShowSnackbar = showSnackbar
                                 )
                             }
                             MainDestination.QURAN -> {
@@ -536,9 +614,74 @@ fun VoxoraApp(
                                     onShowSnackbar = showSnackbar
                                 )
                             }
-                            MainDestination.COMMUNITY -> {
-                                CommunityScreen(
+                            MainDestination.CENTRE -> {
+                                CentreHubScreen(
                                     repository = repository,
+                                    prayerTimesRepository = prayerTimesRepository,
+                                    ecosystemRepository = ecosystemRepository,
+                                    onSelectMode = { mode ->
+                                        when (mode) {
+                                            VoxoraMode.HOME -> {
+                                                currentDestination = MainDestination.HOME
+                                            }
+                                            VoxoraMode.QURAN -> {
+                                                currentDestination = MainDestination.QURAN
+                                            }
+                                            VoxoraMode.SALAH -> {
+                                                currentSubScreen = SubScreen.SALAH_MODE
+                                            }
+                                            VoxoraMode.LEARNING -> {
+                                                currentSubScreen = SubScreen.CLASSES_SCREEN
+                                            }
+                                            VoxoraMode.LIVE_CLASS -> {
+                                                currentSubScreen = SubScreen.LIVE_CLASS
+                                            }
+                                            VoxoraMode.DHIKR -> {
+                                                currentSubScreen = SubScreen.DHIKR_MODE
+                                            }
+                                            VoxoraMode.DUA -> {
+                                                currentSubScreen = SubScreen.DUA_MODE
+                                            }
+                                            VoxoraMode.RAMADAN -> {
+                                                currentSubScreen = SubScreen.RAMADAN_MODE
+                                            }
+                                            VoxoraMode.HAJJ_UMRAH -> {
+                                                currentSubScreen = SubScreen.HAJJ_UMRAH_MODE
+                                            }
+                                            VoxoraMode.MASJID -> {
+                                                currentSubScreen = SubScreen.MASJID_MODE
+                                            }
+                                            VoxoraMode.CALENDAR -> {
+                                                currentSubScreen = SubScreen.CALENDAR_MODE
+                                            }
+                                            VoxoraMode.PROFILE -> {
+                                                currentDestination = MainDestination.PROFILE
+                                            }
+                                        }
+                                    },
+                                    onShowSnackbar = showSnackbar
+                                )
+                            }
+                            MainDestination.JOURNEY -> {
+                                JourneyScreen(
+                                    repository = repository,
+                                    prayerTimesRepository = prayerTimesRepository,
+                                    ecosystemRepository = ecosystemRepository,
+                                    onNavigateToQuran = {
+                                        currentDestination = MainDestination.QURAN
+                                    },
+                                    onNavigateToSalah = {
+                                        currentSubScreen = SubScreen.SALAH_MODE
+                                    },
+                                    onNavigateToDhikr = {
+                                        currentSubScreen = SubScreen.DHIKR_MODE
+                                    },
+                                    onNavigateToLearning = {
+                                        currentSubScreen = SubScreen.CLASSES_SCREEN
+                                    },
+                                    onNavigateToLiveClass = {
+                                        currentSubScreen = SubScreen.LIVE_CLASS
+                                    },
                                     onShowSnackbar = showSnackbar
                                 )
                             }

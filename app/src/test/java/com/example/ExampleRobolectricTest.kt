@@ -19,7 +19,7 @@ class ExampleRobolectricTest {
     fun `verify app name resource`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val appName = context.getString(R.string.app_name)
-        assertEquals("Voxora Quran", appName)
+        assertEquals("Voxora Muslim Centre", appName)
     }
 
     @Test
@@ -69,5 +69,15 @@ class ExampleRobolectricTest {
         val updatedPost = repository.posts.value.find { it.id == newPost.id }
         assertNotNull(updatedPost)
         assertEquals(1, updatedPost?.commentsCount)
+    }
+
+    @Test
+    fun `verify spiritual goals and last active mode`() {
+        val repository = VoxoraRepository()
+        assertTrue(repository.userProfile.value.selectedGoals.isNotEmpty())
+        
+        repository.toggleGoal("5 Daily Prayers")
+        repository.setLastActiveMode("QURAN")
+        assertEquals("QURAN", repository.userProfile.value.lastActiveMode)
     }
 }

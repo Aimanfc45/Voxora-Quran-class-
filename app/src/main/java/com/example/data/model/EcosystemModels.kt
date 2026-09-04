@@ -18,6 +18,7 @@ enum class VoxoraMode(
     QURAN("quran", "Reading Quran Mode", "Noble Quran & Tajwid", "📖", "QURAN", "Recite, listen, and reflect on the authentic Quranic verses"),
     SALAH("salah", "Salah Mode", "Prayer Times & Qiblah", "🕌", "SALAH", "Real-time prayer times, Athan alerts, and 3D Qiblah direction"),
     LEARNING("learning", "Learning Mode", "Classes & Tajwid Journey", "🎓", "ACADEMY", "Live classes, certified ustaz guidance, and structured Tajwid courses"),
+    LIVE_CLASS("live_class", "Live Class Mode", "Interactive Halaqah & Studio", "🎥", "LIVE", "Live interactive audio-video practice room powered by LiveKit"),
     DHIKR("dhikr", "Dhikr Mode", "Digital Tasbih & Remembrance", "📿", "DHIKR", "Authentic morning, evening, and daily remembrance counters"),
     DUA("dua", "Dua Mode", "Supplications & Adhkar", "🤲", "DUA", "Categorized authentic supplications from Quran and Sunnah"),
     RAMADAN("ramadan", "Ramadan Mode", "Fasting & Khatam Tracker", "🌙", "RAMADAN", "Imsak, Iftar countdowns, daily fasting goals, and Tarawih tracker"),

@@ -58,8 +58,10 @@ data class UserProfile(
     val dailyGoalVerses: Int = 10,
     val juzProgress: Int = 5,
     val classesAttended: Int = 18,
-    val avatarEmoji: String = "🧕",
-    val totalVersesRead: Int = 420
+    val avatarEmoji: String = "📖",
+    val totalVersesRead: Int = 420,
+    val selectedGoals: Set<String> = setOf("Read Quran", "Improve Salah", "Build Dhikr Habit"),
+    val lastActiveMode: String = "Quran"
 ) {
     val streakCount: Int get() = learningStreakDays
 }

@@ -161,15 +161,36 @@ fun ClassesScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    items(upcomingClasses, key = { it.id }) { qClass ->
-                        ClassItemCard(
-                            quranClass = qClass,
-                            onCardClick = { selectedClassDetail = qClass },
-                            onJoinClick = {
-                                onJoinLiveClass()
-                                onShowSnackbar("Joining ${qClass.title}...")
+                    if (upcomingClasses.isEmpty()) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(imageVector = Icons.Outlined.EventAvailable, contentDescription = null, tint = Emerald700, modifier = Modifier.size(36.dp))
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text("Classes Coming Soon", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("No scheduled live classes available right now. Tap Join Live Room above to enter the active recitation studio.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
-                        )
+                        }
+                    } else {
+                        items(upcomingClasses, key = { it.id }) { qClass ->
+                            ClassItemCard(
+                                quranClass = qClass,
+                                onCardClick = { selectedClassDetail = qClass },
+                                onJoinClick = {
+                                    onJoinLiveClass()
+                                    onShowSnackbar("Joining ${qClass.title}...")
+                                }
+                            )
+                        }
                     }
 
                     item {
@@ -190,15 +211,36 @@ fun ClassesScreen(
                 }
 
                 ClassesTab.UPCOMING -> {
-                    items(upcomingClasses, key = { it.id }) { qClass ->
-                        ClassItemCard(
-                            quranClass = qClass,
-                            onCardClick = { selectedClassDetail = qClass },
-                            onJoinClick = {
-                                onJoinLiveClass()
-                                onShowSnackbar("Joining ${qClass.title}...")
+                    if (upcomingClasses.isEmpty()) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(imageVector = Icons.Outlined.EventAvailable, contentDescription = null, tint = Emerald700, modifier = Modifier.size(36.dp))
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text("Classes Coming Soon", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("No live classes currently scheduled. New interactive sessions will appear here once announced.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
-                        )
+                        }
+                    } else {
+                        items(upcomingClasses, key = { it.id }) { qClass ->
+                            ClassItemCard(
+                                quranClass = qClass,
+                                onCardClick = { selectedClassDetail = qClass },
+                                onJoinClick = {
+                                    onJoinLiveClass()
+                                    onShowSnackbar("Joining ${qClass.title}...")
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -326,14 +368,29 @@ private fun LiveClassHeroCard(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        painter = painterResource(id = quranClass.teacher.imageDrawableRes ?: R.drawable.img_teacher_ahmad),
-                        contentDescription = quranClass.teacher.name,
-                        contentScale = ContentScale.Crop,
+                    Box(
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(30.dp)
                             .clip(CircleShape)
-                    )
+                            .background(Emerald800),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (quranClass.teacher.imageDrawableRes != null) {
+                            Image(
+                                painter = painterResource(id = quranClass.teacher.imageDrawableRes),
+                                contentDescription = quranClass.teacher.name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = GoldPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "${quranClass.teacher.name} ${quranClass.teacher.flagEmoji}",

@@ -1,6 +1,6 @@
 {
-  "name": "Voxora Quran",
-  "description": "Learn. Recite. Grow. - Premium Islamic education and interactive live Quran learning platform.",
+  "name": "Voxora Muslim Centre",
+  "description": "Learn. Recite. Grow. Your Islamic journey, in one place. Premium modern Islamic ecosystem featuring Quran, Salah, Dhikr, and Live Interactive Learning.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
