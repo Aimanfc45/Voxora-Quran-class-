@@ -1354,6 +1354,23 @@ class VoxoraRepository(
         return true
     }
 
+    fun syncWithAuthUser(user: com.example.data.model.AuthUser) {
+        _userProfile.update {
+            it.copy(
+                name = user.name,
+                username = user.username,
+                email = user.email,
+                photoUrl = user.photoUrl,
+                country = user.country,
+                isGuest = user.isGuest,
+                learningLevel = user.learningLevel,
+                authProvider = user.provider
+            )
+        }
+        _authMode.value = if (user.isGuest) AuthMode.GUEST else AuthMode.AUTHENTICATED
+        triggerCloudSync()
+    }
+
     fun continueAsGuestUser() {
         _userProfile.update {
             it.copy(

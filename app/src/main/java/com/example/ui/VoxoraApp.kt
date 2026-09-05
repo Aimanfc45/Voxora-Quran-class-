@@ -688,6 +688,7 @@ fun VoxoraApp(
                             MainDestination.PROFILE -> {
                                 ProfileSettingsScreen(
                                     repository = repository,
+                                    authRepository = authRepository,
                                     onShowSnackbar = showSnackbar,
                                     onNavigateToAuth = {
                                         currentSubScreen = SubScreen.AUTH_SCREEN

@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -35,6 +36,7 @@ import com.example.data.model.AuthFormType
 import com.example.data.model.AuthStatus
 import com.example.data.repository.AuthRepository
 import com.example.data.repository.VoxoraRepository
+import com.example.ui.components.GoogleLogoIcon
 import com.example.ui.components.SubtleIslamicPattern
 import com.example.ui.theme.*
 import kotlinx.coroutines.launch
@@ -49,6 +51,7 @@ fun AuthScreen(
     onShowSnackbar: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val authUiState by authRepository.authUiState.collectAsState()
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -122,14 +125,27 @@ fun AuthScreen(
                         Spacer(modifier = Modifier.width(48.dp))
                     }
 
-                    Text(
-                        text = "VOXORA QURAN",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 2.sp,
-                            color = Gold400
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "VOXORA",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 3.sp,
+                                color = Gold400
+                            )
                         )
-                    )
+                        Text(
+                            text = "Muslim Centre",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Medium,
+                                letterSpacing = 1.sp,
+                                color = Emerald200.copy(alpha = 0.8f)
+                            )
+                        )
+                    }
 
                     // Top quick guest shortcut
                     TextButton(
@@ -137,7 +153,12 @@ fun AuthScreen(
                             scope.launch {
                                 val result = authRepository.continueAsGuest()
                                 if (result.isSuccess) {
-                                    repository.continueAsGuestUser()
+                                    val guestUser = result.getOrNull()
+                                    if (guestUser != null) {
+                                        repository.syncWithAuthUser(guestUser)
+                                    } else {
+                                        repository.continueAsGuestUser()
+                                    }
                                     onShowSnackbar("Entered Guest Mode. Full Quran & Prayer tools available.")
                                     onAuthSuccess()
                                 }
@@ -188,21 +209,34 @@ fun AuthScreen(
                             Spacer(modifier = Modifier.height(14.dp))
 
                             Text(
-                                text = "Welcome to Voxora",
-                                style = MaterialTheme.typography.headlineMedium.copy(
-                                    fontWeight = FontWeight.ExtraBold,
+                                text = "VOXORA",
+                                style = MaterialTheme.typography.headlineLarge.copy(
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 4.sp,
                                     color = Color.White
                                 ),
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.testTag("auth_welcome_title")
                             )
 
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Muslim Centre",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.5.sp,
+                                    color = Gold400
+                                ),
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
 
                             Text(
-                                text = "Continue your Quran journey.",
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = Emerald200.copy(alpha = 0.9f)
+                                text = "Learn. Recite. Grow.",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    color = Emerald200.copy(alpha = 0.9f),
+                                    letterSpacing = 0.5.sp
                                 ),
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.testTag("auth_welcome_subtitle")
@@ -257,11 +291,11 @@ fun AuthScreen(
                                         if (isLoading) return@Button
                                         scope.launch {
                                             localErrorMessage = null
-                                            val result = authRepository.signInWithGoogle()
+                                            val result = authRepository.signInWithGoogle(context)
                                             if (result.isSuccess) {
                                                 val user = result.getOrNull()
                                                 if (user != null) {
-                                                    repository.authenticateUser(user.email, "")
+                                                    repository.syncWithAuthUser(user)
                                                     onShowSnackbar("Signed in with Google as ${user.name}!")
                                                     onAuthSuccess()
                                                 }
@@ -293,13 +327,8 @@ fun AuthScreen(
                                             horizontalArrangement = Arrangement.Center,
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
-                                            // Google Logo colored G
-                                            Text(
-                                                text = "G",
-                                                style = MaterialTheme.typography.titleLarge.copy(
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = Color(0xFF4285F4)
-                                                ),
+                                            GoogleLogoIcon(
+                                                size = 22.dp,
                                                 modifier = Modifier.padding(end = 12.dp)
                                             )
                                             Text(
@@ -422,7 +451,12 @@ fun AuthScreen(
                                             scope.launch {
                                                 val result = authRepository.continueAsGuest()
                                                 if (result.isSuccess) {
-                                                    repository.continueAsGuestUser()
+                                                    val guestUser = result.getOrNull()
+                                                    if (guestUser != null) {
+                                                        repository.syncWithAuthUser(guestUser)
+                                                    } else {
+                                                        repository.continueAsGuestUser()
+                                                    }
                                                     onShowSnackbar("Entered Guest Mode. Enjoy full Quran recitation & features!")
                                                     onAuthSuccess()
                                                 }
@@ -597,7 +631,7 @@ fun AuthScreen(
                                                     val result = authRepository.signInWithEmail(emailInput, passwordInput)
                                                     if (result.isSuccess) {
                                                         val user = result.getOrNull()!!
-                                                        repository.authenticateUser(user.email, passwordInput)
+                                                        repository.syncWithAuthUser(user)
                                                         onShowSnackbar("Signed in successfully as ${user.name}!")
                                                         onAuthSuccess()
                                                     } else {
@@ -613,13 +647,7 @@ fun AuthScreen(
                                                     )
                                                     if (result.isSuccess) {
                                                         val user = result.getOrNull()!!
-                                                        repository.createAccountUser(
-                                                            name = user.name,
-                                                            email = user.email,
-                                                            pass = passwordInput,
-                                                            country = user.country,
-                                                            level = user.learningLevel
-                                                        )
+                                                        repository.syncWithAuthUser(user)
                                                         onShowSnackbar("Account created! Welcome to Voxora.")
                                                         onAuthSuccess()
                                                     } else {

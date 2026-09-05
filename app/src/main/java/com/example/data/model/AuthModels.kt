@@ -13,6 +13,14 @@ enum class AuthMode {
     UNAUTHENTICATED
 }
 
+enum class VoxoraAuthState {
+    SIGNED_OUT,
+    GUEST,
+    SIGNED_IN,
+    LOADING,
+    ERROR
+}
+
 enum class AuthStatus {
     IDLE,
     LOADING,
@@ -34,10 +42,12 @@ data class AuthUser(
     val name: String,
     val email: String,
     val username: String,
+    val photoUrl: String? = null,
     val country: String = "Malaysia",
     val isGuest: Boolean = false,
     val learningLevel: String = "Intermediate (Juz 5)",
-    val avatarEmoji: String = "📖"
+    val avatarEmoji: String = "📖",
+    val provider: String = "firebase"
 )
 
 data class AuthUiState(
@@ -50,19 +60,15 @@ data class AuthUiState(
 /**
  * Clean production-grade Authentication Service interface.
  *
- * BACKEND CONFIGURATION REQUIREMENT:
- * In production, connect this service to your secure backend:
- * - Firebase Authentication (Google, Email/Password, Anonymous Guest)
- * - Custom OAuth2 / OpenID Connect Server (Bearer JWT tokens)
- * - Supabase Auth
- *
- * NOTE: Private API keys, JWT secrets, and client secrets MUST NEVER be hardcoded.
+ * Supports:
+ * - Firebase Authentication (Google via Credential Manager, Email/Password, Anonymous Guest)
+ * - Session restoration & multi-device identity synchronization.
  */
 interface IAuthService {
     suspend fun signInWithEmail(email: String, password: String): Result<AuthUser>
-    suspend fun signInWithGoogle(): Result<AuthUser>
+    suspend fun signInWithGoogle(context: android.content.Context? = null): Result<AuthUser>
     suspend fun createAccount(name: String, email: String, password: String, country: String, level: String): Result<AuthUser>
     suspend fun sendPasswordResetEmail(email: String): Result<Unit>
     suspend fun continueAsGuest(): Result<AuthUser>
-    suspend fun signOut(): Result<Unit>
+    suspend fun signOut(context: android.content.Context? = null): Result<Unit>
 }

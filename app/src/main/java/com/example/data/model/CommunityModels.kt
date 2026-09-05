@@ -44,6 +44,8 @@ data class UserProfile(
     val name: String = "Ahmed Al-Farsi",
     val username: String = "@ahmed_alfarsi",
     val email: String = "ahmed.farsi@voxora.app",
+    val photoUrl: String? = null,
+    val authProvider: String = "local",
     val country: String = "Malaysia",
     val flagEmoji: String = "🇲🇾",
     val languages: List<String> = listOf("English", "Bahasa Melayu", "Arabic"),

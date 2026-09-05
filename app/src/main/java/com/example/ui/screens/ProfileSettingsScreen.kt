@@ -3,7 +3,9 @@ package com.example.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,28 +22,36 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.data.model.AudioRepeatMode
 import com.example.data.model.ReadingDisplayMode
+import com.example.data.repository.AuthRepository
 import com.example.data.repository.VoxoraRepository
 import com.example.data.update.AppVersion
 import com.example.ui.components.*
 import com.example.ui.theme.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileSettingsScreen(
     repository: VoxoraRepository,
+    authRepository: AuthRepository? = null,
     onShowSnackbar: (String) -> Unit,
     onNavigateToAuth: () -> Unit = {},
     onNavigateToOnboarding: () -> Unit = {},
     onNavigateToSalahMode: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val user by repository.userProfile.collectAsState()
     val progress by repository.progress.collectAsState()
     val quranSettings by repository.quranSettings.collectAsState()
@@ -91,18 +101,31 @@ fun ProfileSettingsScreen(
                         modifier = Modifier.padding(20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Avatar Badge
-                        Box(
-                            modifier = Modifier
-                                .size(78.dp)
-                                .clip(CircleShape)
-                                .background(Emerald700),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = user.avatarEmoji,
-                                fontSize = 38.sp
+                        // Avatar Badge (Google profile image when available, or emoji fallback)
+                        if (!user.photoUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = user.photoUrl,
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier
+                                    .size(78.dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, Gold500, CircleShape),
+                                contentScale = ContentScale.Crop
                             )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(78.dp)
+                                    .clip(CircleShape)
+                                    .background(Emerald700)
+                                    .border(2.dp, Gold500, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = user.avatarEmoji,
+                                    fontSize = 38.sp
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -114,34 +137,56 @@ fun ProfileSettingsScreen(
                         )
 
                         Text(
+                            text = user.email,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Text(
                             text = user.username,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                             color = Emerald700
                         )
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        // Account Status Pill (Guest vs Signed In)
+                        // Account Status Pill (Google vs Email vs Guest)
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = if (user.isGuest) Color(0xFFFEF3C7) else Emerald100
+                            color = when {
+                                user.isGuest -> Color(0xFFFEF3C7)
+                                user.authProvider.contains("google", ignoreCase = true) -> Color(0xFFE8F0FE)
+                                else -> Emerald100
+                            }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Icon(
-                                    imageVector = if (user.isGuest) Icons.Default.CloudOff else Icons.Default.CloudDone,
-                                    contentDescription = null,
-                                    tint = if (user.isGuest) Color(0xFFB45309) else Emerald900,
-                                    modifier = Modifier.size(14.dp)
-                                )
+                                if (user.authProvider.contains("google", ignoreCase = true)) {
+                                    GoogleLogoIcon(size = 14.dp)
+                                } else {
+                                    Icon(
+                                        imageVector = if (user.isGuest) Icons.Default.CloudOff else Icons.Default.CloudDone,
+                                        contentDescription = null,
+                                        tint = if (user.isGuest) Color(0xFFB45309) else Emerald900,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
                                 Text(
-                                    text = if (user.isGuest) "Guest Mode (Local Only)" else "Signed In (${user.email})",
+                                    text = when {
+                                        user.isGuest -> "Guest Mode"
+                                        user.authProvider.contains("google", ignoreCase = true) -> "Google Account"
+                                        else -> "Email Account"
+                                    },
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = if (user.isGuest) Color(0xFF92400E) else Emerald900
+                                        color = when {
+                                            user.isGuest -> Color(0xFF92400E)
+                                            user.authProvider.contains("google", ignoreCase = true) -> Color(0xFF1967D2)
+                                            else -> Emerald900
+                                        }
                                     )
                                 )
                             }
@@ -192,7 +237,7 @@ fun ProfileSettingsScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Actions: Edit Profile & Account/Sign-In
+                        // Actions: Edit Profile & Account/Sign-Out
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -210,25 +255,56 @@ fun ProfileSettingsScreen(
                                 Text("Edit Profile")
                             }
 
-                            Button(
-                                onClick = { showGuestAccountSheet = true },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (user.isGuest) Emerald700 else MaterialTheme.colorScheme.secondaryContainer,
-                                    contentColor = if (user.isGuest) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .testTag("account_management_btn")
-                            ) {
-                                Icon(
-                                    imageVector = if (user.isGuest) Icons.Default.Login else Icons.Default.AccountCircle,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(if (user.isGuest) "Sign In" else "Account")
+                            if (user.isGuest) {
+                                Button(
+                                    onClick = { showGuestAccountSheet = true },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Emerald700,
+                                        contentColor = Color.White
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                        .testTag("account_management_btn")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Login,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Sign In")
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = {
+                                        val actualAuth = authRepository ?: AuthRepository(context)
+                                        scope.launch {
+                                            actualAuth.signOut(context)
+                                            repository.signOutUser()
+                                            onShowSnackbar("Signed out successfully.")
+                                            onNavigateToAuth()
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.error
+                                    ),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                        .testTag("profile_sign_out_btn")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Logout,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Sign Out")
+                                }
                             }
                         }
                     }
@@ -643,17 +719,121 @@ fun ProfileSettingsScreen(
                                 }
                             }
                         } else {
-                            Row(
+                            Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Column {
-                                    Text(user.name, fontWeight = FontWeight.Bold)
-                                    Text(user.email, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    if (!user.photoUrl.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = user.photoUrl,
+                                            contentDescription = "Profile Photo",
+                                            modifier = Modifier
+                                                .size(44.dp)
+                                                .clip(CircleShape)
+                                                .border(1.dp, Gold500, CircleShape),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(44.dp)
+                                                .clip(CircleShape)
+                                                .background(Emerald800),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(user.avatarEmoji, fontSize = 22.sp)
+                                        }
+                                    }
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = user.name,
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                        )
+                                        Text(
+                                            text = user.email,
+                                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        )
+                                    }
+
+                                    if (user.authProvider.contains("google", ignoreCase = true)) {
+                                        GoogleLogoIcon(size = 22.dp)
+                                    }
                                 }
-                                TextButton(onClick = { showGuestAccountSheet = true }) {
-                                    Text("Manage", color = Emerald700)
+
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Account",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        )
+                                        Text(
+                                            text = when {
+                                                user.authProvider.contains("google", ignoreCase = true) -> "Google Account"
+                                                else -> "Email Account"
+                                            },
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (user.authProvider.contains("google", ignoreCase = true)) Color(0xFF1967D2) else Emerald800
+                                            )
+                                        )
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            val actualAuth = authRepository ?: AuthRepository(context)
+                                            scope.launch {
+                                                actualAuth.signOut(context)
+                                                repository.signOutUser()
+                                                onShowSnackbar("Signed out successfully.")
+                                                onNavigateToAuth()
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(40.dp)
+                                    ) {
+                                        Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Sign Out")
+                                    }
+
+                                    Button(
+                                        onClick = { showGuestAccountSheet = true },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Emerald700),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(40.dp)
+                                    ) {
+                                        Text("Manage Profile")
+                                    }
                                 }
                             }
                         }
@@ -825,6 +1005,11 @@ fun ProfileSettingsScreen(
         GuestAccountBottomSheet(
             user = user,
             repository = repository,
+            authRepository = authRepository,
+            onNavigateToAuth = {
+                showGuestAccountSheet = false
+                onNavigateToAuth()
+            },
             onDismiss = { showGuestAccountSheet = false },
             onSuccess = { onShowSnackbar(it) }
         )
