@@ -86,7 +86,7 @@ object MockUserData {
         Achievement(
             id = "ach_4",
             title = "Tajwid Beginner",
-            description = "Mastered Noon Sakinah, Tanween, and Meem Sakinah rules with Ustaz Ahmad.",
+            description = "Mastered Noon Sakinah, Tanween, and Meem Sakinah rules with Certified Tajwid Instructor.",
             iconEmoji = "🌟",
             isUnlocked = true,
             progressPercent = 100,

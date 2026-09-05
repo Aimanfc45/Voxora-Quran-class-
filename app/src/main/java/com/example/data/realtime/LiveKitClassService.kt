@@ -1,12 +1,14 @@
 package com.example.data.realtime
 
 import android.content.Context
+import android.media.AudioManager
 import android.util.Log
 import com.example.data.mock.MockClassData
 import com.example.data.model.ClassChatMessage
 import com.example.data.model.ClassType
 import com.example.data.model.Participant
 import com.example.data.model.Teacher
+import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import io.livekit.android.LiveKit
@@ -15,6 +17,7 @@ import io.livekit.android.room.Room
 import io.livekit.android.room.participant.ConnectionQuality
 import io.livekit.android.room.participant.Participant as LKParticipant
 import io.livekit.android.room.participant.RemoteParticipant
+import io.livekit.android.room.track.CameraPosition
 import io.livekit.android.room.track.DataPublishReliability
 import io.livekit.android.room.track.LocalVideoTrack
 import io.livekit.android.room.track.RemoteVideoTrack
@@ -42,6 +45,7 @@ class LiveKitClassService(
     private val handRaiseAdapter = moshi.adapter(HandRaisePacket::class.java)
     private val assessmentAdapter = moshi.adapter(RecitationAssessment::class.java)
     private val participantActionAdapter = moshi.adapter(ParticipantActionPacket::class.java)
+    private val classInfoAdapter = moshi.adapter(ClassInfoPacket::class.java)
     private val okHttpClient = OkHttpClient()
 
     var room: Room? = null
@@ -86,6 +90,16 @@ class LiveKitClassService(
 
     private val _teacherVideoTrack = MutableStateFlow<VideoTrack?>(null)
     val teacherVideoTrack: StateFlow<VideoTrack?> = _teacherVideoTrack.asStateFlow()
+
+    private val _remoteVideoTracks = MutableStateFlow<Map<String, VideoTrack>>(emptyMap())
+    val remoteVideoTracks: StateFlow<Map<String, VideoTrack>> = _remoteVideoTracks.asStateFlow()
+
+    // Class metadata state
+    private val _activeClassState = MutableStateFlow<ActiveClassInfo?>(null)
+    val activeClassState: StateFlow<ActiveClassInfo?> = _activeClassState.asStateFlow()
+
+    private val _currentClassInfo = MutableStateFlow<ClassInfoPacket?>(null)
+    val currentClassInfo: StateFlow<ClassInfoPacket?> = _currentClassInfo.asStateFlow()
 
     // Classroom Role & Mode
     private val _myRole = MutableStateFlow(ClassroomRole.STUDENT)
@@ -169,25 +183,52 @@ class LiveKitClassService(
                         _connectionQuality.value = ConnectionQualityLevel.GOOD
                         updateParticipantsFromRoom()
                     }
-                    is RoomEvent.ParticipantConnected,
-                    is RoomEvent.ParticipantDisconnected -> {
+                    is RoomEvent.ParticipantConnected -> {
                         updateParticipantsFromRoom()
+                        if (_myRole.value == ClassroomRole.TEACHER) {
+                            broadcastClassInfo()
+                        }
+                    }
+                    is RoomEvent.ParticipantDisconnected -> {
+                        val pid = event.participant.identity?.value ?: "rp_${event.participant.hashCode()}"
+                        _remoteVideoTracks.update { it - pid }
+                        if (_teacherVideoTrack.value != null && !_remoteVideoTracks.value.containsValue(_teacherVideoTrack.value)) {
+                            _teacherVideoTrack.value = _remoteVideoTracks.value.values.firstOrNull()
+                        }
+                        updateParticipantsFromRoom()
+                    }
+                    is RoomEvent.TrackPublished -> {
+                        if (event.participant == r.localParticipant && event.publication.track is VideoTrack) {
+                            _localVideoTrack.value = event.publication.track as VideoTrack
+                        }
+                    }
+                    is RoomEvent.TrackUnpublished -> {
+                        if (event.participant == r.localParticipant && event.publication.source == Track.Source.CAMERA) {
+                            _localVideoTrack.value = null
+                        }
                     }
                     is RoomEvent.TrackSubscribed -> {
                         if (event.track is VideoTrack) {
+                            val pid = event.participant.identity?.value ?: "rp_${event.participant.hashCode()}"
+                            val vid = event.track as VideoTrack
+                            _remoteVideoTracks.update { it + (pid to vid) }
                             val isTeacher = event.participant.identity?.value?.contains("teacher", ignoreCase = true) == true ||
-                                event.participant.name?.contains("Ustaz", ignoreCase = true) == true ||
                                 event.participant.name?.contains("Teacher", ignoreCase = true) == true ||
+                                event.participant.name?.contains("Host", ignoreCase = true) == true ||
                                 event.participant.metadata?.contains("teacher", ignoreCase = true) == true
                             if (isTeacher || _teacherVideoTrack.value == null) {
-                                _teacherVideoTrack.value = event.track as VideoTrack
+                                _teacherVideoTrack.value = vid
                             }
                         }
                         updateParticipantsFromRoom()
                     }
                     is RoomEvent.TrackUnsubscribed -> {
-                        if (event.track == _teacherVideoTrack.value) {
-                            _teacherVideoTrack.value = null
+                        if (event.track is VideoTrack) {
+                            val pid = event.participant.identity?.value ?: "rp_${event.participant.hashCode()}"
+                            _remoteVideoTracks.update { it - pid }
+                            if (event.track == _teacherVideoTrack.value) {
+                                _teacherVideoTrack.value = _remoteVideoTracks.value.values.firstOrNull()
+                            }
                         }
                         updateParticipantsFromRoom()
                     }
@@ -249,11 +290,23 @@ class LiveKitClassService(
         classId: String = "cls_live_01",
         participantName: String = "Student",
         participantIdentity: String = getStableParticipantIdentity(participantName),
-        role: ClassroomRole = _myRole.value
+        role: ClassroomRole = _myRole.value,
+        activeClassInfo: ActiveClassInfo? = null
     ): Result<Boolean> = withContext(Dispatchers.IO) {
         _myRole.value = role
         localParticipantName = participantName
         localParticipantIdentity = participantIdentity
+        _activeClassState.value = activeClassInfo
+        if (activeClassInfo != null) {
+            _currentClassInfo.value = ClassInfoPacket(
+                type = "class_info",
+                classCode = activeClassInfo.code,
+                className = activeClassInfo.className,
+                topic = activeClassInfo.topic,
+                classType = activeClassInfo.classType,
+                hostName = activeClassInfo.hostName
+            )
+        }
         val currentConfig = _config.value
 
         if (!currentConfig.isConfigured) {
@@ -333,6 +386,10 @@ class LiveKitClassService(
                 }
             }
 
+            if (role == ClassroomRole.TEACHER && activeClassInfo != null) {
+                broadcastClassInfo(activeClassInfo)
+            }
+
             Result.success(true)
         } catch (e: Exception) {
             val liveKitError = if (e is LiveKitError) e else LiveKitError.RoomConnectionFailed(e.message ?: "Connection failed", e)
@@ -350,17 +407,33 @@ class LiveKitClassService(
     fun leaveClass() {
         coroutineScope.launch {
             try {
-                room?.disconnect()
+                val r = room
+                if (r != null) {
+                    try {
+                        r.localParticipant.setCameraEnabled(false)
+                        r.localParticipant.setMicrophoneEnabled(false)
+                    } catch (_: Exception) {}
+                    r.disconnect()
+                }
             } catch (e: Exception) {
                 Log.e(tag, "Error disconnecting: ${e.message}")
             } finally {
-                _isConnectedToRealRoom.value = false
-                _isConnecting.value = false
-                _localVideoTrack.value = null
-                _teacherVideoTrack.value = null
-                _connectionQuality.value = if (_config.value.isConfigured) ConnectionQualityLevel.DISCONNECTED else ConnectionQualityLevel.UNCONFIGURED
+                withContext(Dispatchers.Main) {
+                    _isConnectedToRealRoom.value = false
+                    _isConnecting.value = false
+                    _localVideoTrack.value = null
+                    _teacherVideoTrack.value = null
+                    _remoteVideoTracks.value = emptyMap()
+                    _participants.value = emptyList()
+                    _connectionQuality.value = if (_config.value.isConfigured) ConnectionQualityLevel.DISCONNECTED else ConnectionQualityLevel.UNCONFIGURED
+                }
             }
         }
+    }
+
+    fun setInitialMedia(micEnabled: Boolean, videoEnabled: Boolean) {
+        _isMicMuted.value = !micEnabled
+        _isVideoOn.value = videoEnabled
     }
 
     fun reconnect() {
@@ -387,11 +460,6 @@ class LiveKitClassService(
                     Log.e(tag, "Error toggling microphone: ${e.message}")
                 }
             }
-        } else {
-            // Update local prototype state
-            _participants.update { list ->
-                list.map { if (it.id == "p_1") it.copy(isMicMuted = newMuted) else it }
-            }
         }
     }
 
@@ -409,11 +477,6 @@ class LiveKitClassService(
                     Log.e(tag, "Error toggling camera: ${e.message}")
                 }
             }
-        } else {
-            // Update local prototype state
-            _participants.update { list ->
-                list.map { if (it.id == "p_1") it.copy(isVideoOn = newVideo) else it }
-            }
         }
     }
 
@@ -428,13 +491,15 @@ class LiveKitClassService(
             coroutineScope.launch {
                 try {
                     val track = r.localParticipant.getTrackPublication(Track.Source.CAMERA)?.track as? LocalVideoTrack
-                    // LiveKit handles camera flipping or restarting
-                    track?.let {
-                        // Switch camera or toggle device
-                        r.localParticipant.setCameraEnabled(false)
-                        r.localParticipant.setCameraEnabled(true)
-                        val updatedTrack = r.localParticipant.getTrackPublication(Track.Source.CAMERA)?.track as? VideoTrack
-                        _localVideoTrack.value = updatedTrack
+                    if (track != null) {
+                        try {
+                            track.switchCamera(position = if (nextState) CameraPosition.FRONT else CameraPosition.BACK)
+                        } catch (_: Exception) {
+                            try {
+                                track.switchCamera()
+                            } catch (_: Exception) {}
+                        }
+                        _localVideoTrack.value = track
                     }
                 } catch (e: Exception) {
                     Log.e(tag, "Error flipping camera: ${e.message}")
@@ -444,7 +509,15 @@ class LiveKitClassService(
     }
 
     fun toggleSpeaker() {
-        _isSpeakerOn.update { !it }
+        val newSpeaker = !_isSpeakerOn.value
+        _isSpeakerOn.value = newSpeaker
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        try {
+            audioManager?.isSpeakerphoneOn = newSpeaker
+            room?.setSpeakerMute(!newSpeaker)
+        } catch (e: Exception) {
+            Log.e(tag, "Error setting speakerphone: ${e.message}")
+        }
     }
 
     fun toggleRaiseHand(): Boolean {
@@ -722,6 +795,12 @@ class LiveKitClassService(
                         }
                     }
                 }
+                "class_info" -> {
+                    val packet = classInfoAdapter.fromJson(jsonStr)
+                    if (packet != null) {
+                        _currentClassInfo.value = packet
+                    }
+                }
                 "assessment" -> {
                     val packet = assessmentAdapter.fromJson(jsonStr)
                     if (packet != null) {
@@ -737,6 +816,21 @@ class LiveKitClassService(
             }
         } catch (e: Exception) {
             Log.e(tag, "Failed to parse incoming data packet: ${e.message}")
+        }
+    }
+
+    fun broadcastClassInfo(info: ActiveClassInfo? = null) {
+        val target = info ?: _activeClassState.value
+        if (target != null) {
+            val packet = ClassInfoPacket(
+                type = "class_info",
+                classCode = target.code,
+                className = target.className,
+                topic = target.topic,
+                classType = target.classType,
+                hostName = target.hostName
+            )
+            publishDataPacket(classInfoAdapter.toJson(packet))
         }
     }
 
@@ -781,25 +875,28 @@ class LiveKitClassService(
 
         // Add local participant
         val local = r.localParticipant
-        val localName = local.name ?: localParticipantName.ifBlank { "You" }
+        val baseName = local.name ?: localParticipantName.ifBlank { "You" }
+        val localDisplayName = if (baseName.endsWith("(You)")) baseName else "$baseName (You)"
         list.add(
             Participant(
                 id = local.sid?.value ?: local.identity?.value ?: "local_p",
-                name = localName,
+                name = localDisplayName,
                 isHandRaised = _isHandRaised.value,
                 isMicMuted = !local.isMicrophoneEnabled(),
                 isVideoOn = local.isCameraEnabled(),
                 isTeacher = _myRole.value == ClassroomRole.TEACHER,
                 role = if (_myRole.value == ClassroomRole.TEACHER) "Teacher" else "Student",
-                isSpeaking = local.isSpeaking
+                isSpeaking = local.isSpeaking,
+                isLocal = true
             )
         )
 
         // Add remote participants
         r.remoteParticipants.values.forEach { rp ->
             val isTeacher = rp.identity?.value?.contains("teacher", ignoreCase = true) == true ||
-                    rp.name?.contains("Ustaz", ignoreCase = true) == true ||
                     rp.name?.contains("Teacher", ignoreCase = true) == true ||
+                    rp.name?.contains("Host", ignoreCase = true) == true ||
+                    rp.name?.contains("Instructor", ignoreCase = true) == true ||
                     rp.metadata?.contains("teacher", ignoreCase = true) == true
             list.add(
                 Participant(

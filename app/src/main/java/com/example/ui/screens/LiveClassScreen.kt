@@ -27,28 +27,36 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import android.content.Context
+import android.content.Intent
 import com.example.R
 import com.example.data.mock.MockQuranData
 import com.example.data.model.ClassChatMessage
 import com.example.data.model.ClassType
 import com.example.data.model.Participant
+import com.example.data.realtime.ActiveClassInfo
 import com.example.data.realtime.ClassroomRole
 import com.example.data.realtime.ConnectionQualityLevel
+import com.example.data.realtime.LiveClassRegistry
 import com.example.data.realtime.LiveKitClassService
 import com.example.data.realtime.QuranSyncPacket
 import com.example.data.repository.AuthRepository
@@ -126,6 +134,24 @@ fun LiveClassScreen(
     var configTokenEndpoint by remember { mutableStateOf(currentConfig.tokenEndpoint) }
     var configDevToken by remember { mutableStateOf(currentConfig.devToken) }
 
+    val currentClassInfo by liveKitService.currentClassInfo.collectAsState()
+    val activeClassState by liveKitService.activeClassState.collectAsState()
+    val remoteVideoTracks by liveKitService.remoteVideoTracks.collectAsState()
+
+    var inClassroom by remember { mutableStateOf(false) }
+    var showInviteDialog by remember { mutableStateOf(false) }
+
+    val displayCode = currentClassInfo?.classCode ?: activeClassState?.code ?: "VX-7K29P"
+    val displayTitle = currentClassInfo?.className ?: activeClassState?.className ?: liveClass.title
+    val displayTopic = currentClassInfo?.topic ?: activeClassState?.topic ?: liveClass.subject
+    val displayHostName = currentClassInfo?.hostName ?: activeClassState?.hostName ?: liveClass.teacher.name
+
+    LaunchedEffect(isConnectedToRealRoom) {
+        if (isConnectedToRealRoom) {
+            inClassroom = true
+        }
+    }
+
     // Permissions launcher
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -141,27 +167,77 @@ fun LiveClassScreen(
         }
     }
 
-    // Connect to room on entry, disconnect on exit
-    LaunchedEffect(Unit) {
-        val pName = authUser?.name?.ifBlank { null } ?: userProfile.name.ifBlank { "Student" }
-        val pId = authUser?.id?.ifBlank { null } ?: "student_${System.currentTimeMillis()}"
-        val pRole = if (authUser?.name?.contains("Teacher", ignoreCase = true) == true || authUser?.name?.contains("Ustaz", ignoreCase = true) == true) {
-            ClassroomRole.TEACHER
-        } else {
-            ClassroomRole.STUDENT
-        }
-        liveKitService.joinClass(
-            classId = liveClass.id,
-            participantName = pName,
-            participantIdentity = pId,
-            role = pRole
-        )
-    }
-
     DisposableEffect(Unit) {
         onDispose {
             liveKitService.leaveClass()
         }
+    }
+
+    // Show Lobby if not in active classroom
+    if (!inClassroom && !isConnectedToRealRoom && !isConnecting) {
+        val defaultStudent = authUser?.name?.ifBlank { null } ?: userProfile.name.ifBlank { "Student" }
+        val defaultTeacher = if (authUser?.name?.contains("Teacher", ignoreCase = true) == true || authUser?.name?.contains("Ustaz", ignoreCase = true) == true) {
+            authUser?.name ?: "Teacher"
+        } else {
+            userProfile.name.ifBlank { "Teacher" }
+        }
+
+        LiveClassLobbyView(
+            defaultStudentName = defaultStudent,
+            defaultTeacherName = defaultTeacher,
+            isConnecting = isConnecting,
+            onJoinClass = { code, participantName, micEnabled, videoEnabled ->
+                inClassroom = true
+                val resolvedInfo = LiveClassRegistry.resolveClass(code)
+                val targetRoom = resolvedInfo?.roomName ?: LiveClassRegistry.classCodeToRoomName(code)
+                liveKitService.setInitialMedia(micEnabled, videoEnabled)
+                coroutineScope.launch {
+                    val res = liveKitService.joinClass(
+                        classId = targetRoom,
+                        participantName = participantName,
+                        role = ClassroomRole.STUDENT,
+                        activeClassInfo = resolvedInfo
+                    )
+                    if (res.isFailure) {
+                        onShowSnackbar("Connection failed: ${res.exceptionOrNull()?.message}")
+                    }
+                }
+            },
+            onCreateClass = { className, topic, classType, hostName, micEnabled, videoEnabled ->
+                inClassroom = true
+                val code = LiveClassRegistry.generateClassCode()
+                val roomName = LiveClassRegistry.classCodeToRoomName(code)
+                val newInfo = ActiveClassInfo(
+                    code = code,
+                    roomName = roomName,
+                    className = className,
+                    topic = topic,
+                    classType = classType,
+                    hostName = hostName,
+                    hostIdentity = "teacher_${System.currentTimeMillis()}"
+                )
+                LiveClassRegistry.registerClass(newInfo)
+                liveKitService.setInitialMedia(micEnabled, videoEnabled)
+                coroutineScope.launch {
+                    val res = liveKitService.joinClass(
+                        classId = roomName,
+                        participantName = hostName,
+                        role = ClassroomRole.TEACHER,
+                        activeClassInfo = newInfo
+                    )
+                    if (res.isSuccess) {
+                        showInviteDialog = true
+                    } else {
+                        onShowSnackbar("Failed to create room: ${res.exceptionOrNull()?.message}")
+                    }
+                }
+            },
+            onBack = onLeaveClass,
+            onOpenSettings = { showConfigDialog = true },
+            onShowSnackbar = onShowSnackbar,
+            modifier = modifier
+        )
+        return
     }
 
     // Main Live Class UI Canvas
@@ -172,8 +248,10 @@ fun LiveClassScreen(
         containerColor = Emerald950,
         topBar = {
             LiveClassHeader(
-                title = liveClass.title,
-                subject = liveClass.subject,
+                title = displayTitle,
+                subject = displayTopic,
+                classCode = displayCode,
+                onCopyCode = { showInviteDialog = true },
                 isConnecting = isConnecting,
                 isConnected = isConnectedToRealRoom,
                 connectionQuality = connectionQuality,
@@ -227,11 +305,12 @@ fun LiveClassScreen(
                 },
                 onToggleRaiseHand = {
                     val raised = liveKitService.toggleRaiseHand()
-                    onShowSnackbar(if (raised) "Hand raised! Ustaz notified." else "Hand lowered.")
+                    onShowSnackbar(if (raised) "Hand raised! Teacher notified." else "Hand lowered.")
                 },
                 onOpenSharedQuran = { showSharedQuranSheet = true },
                 onOpenChat = { showChatSheet = true },
                 onOpenTeacherControls = { showTeacherControlsSheet = true },
+                onOpenInvite = { showInviteDialog = true },
                 onLeaveClick = { showLeaveConfirmation = true }
             )
         }
@@ -418,7 +497,7 @@ fun LiveClassScreen(
                                 ) {
                                     Icon(imageVector = Icons.Default.Stars, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
                                     Text(
-                                        text = "Ustaz's Assessment for ${assessment.studentName}",
+                                        text = "Teacher's Assessment for ${assessment.studentName}",
                                         color = GoldLight,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp
@@ -517,11 +596,25 @@ fun LiveClassScreen(
 
             // Teacher View (Hero Tile)
             item {
+                val isTeacher = currentRole == ClassroomRole.TEACHER
+                val effectiveTeacherTrack = if (isTeacher) {
+                    localVideoTrack ?: teacherVideoTrack
+                } else {
+                    teacherVideoTrack
+                }
+                val teacherRealName = if (isTeacher) {
+                    authUser?.name?.ifBlank { null } ?: userProfile.name.ifBlank { displayHostName }
+                } else {
+                    displayHostName
+                }
                 TeacherHeroView(
-                    teacher = liveClass.teacher,
-                    teacherVideoTrack = teacherVideoTrack,
+                    teacherName = teacherRealName,
+                    teacherVideoTrack = effectiveTeacherTrack,
                     room = liveKitService.room,
                     activeSpeaker = activeSpeaker,
+                    isMe = isTeacher,
+                    isVideoOn = if (isTeacher) isVideoOn else (effectiveTeacherTrack != null),
+                    isMicMuted = if (isTeacher) isMicMuted else false,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -616,10 +709,13 @@ fun LiveClassScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         items(studentParticipants) { participant ->
+                            val pTrack = if (participant.isLocal) localVideoTrack else remoteVideoTracks[participant.id]
                             ParticipantTile(
                                 participant = participant,
                                 activeSpeaker = activeSpeaker,
                                 isTeacher = currentRole == ClassroomRole.TEACHER,
+                                videoTrack = pTrack,
+                                room = liveKitService.room,
                                 onSelectReciter = {
                                     liveKitService.selectStudentReciter(participant.id, participant.name)
                                     onShowSnackbar("${participant.name} selected as active reciter")
@@ -698,6 +794,123 @@ fun LiveClassScreen(
         )
     }
 
+    // Invite / Share Class Dialog
+    if (showInviteDialog) {
+        val clipboardManager = LocalClipboardManager.current
+        val shareText = "Join my Voxora Live Class\nClass Code: $displayCode\nOpen Voxora → Live Class → Join Class"
+
+        AlertDialog(
+            onDismissRequest = { showInviteDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Share, contentDescription = null, tint = Emerald700)
+                    Text(
+                        text = "Invite Students",
+                        fontWeight = FontWeight.Bold,
+                        color = Emerald950
+                    )
+                }
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Share this Class Code with students so they can join this live session in real-time.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+
+                    // Big Class Code Card
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Emerald900,
+                        border = BorderStroke(1.5.dp, GoldPrimary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                clipboardManager.setText(AnnotatedString(displayCode))
+                                onShowSnackbar("Class code $displayCode copied to clipboard!")
+                            }
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = "CLASS CODE",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = GoldLight.copy(alpha = 0.8f),
+                                letterSpacing = 2.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = displayCode,
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White,
+                                letterSpacing = 3.sp
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = "Copy",
+                                    tint = GoldLight,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "Tap to Copy Code",
+                                    fontSize = 12.sp,
+                                    color = GoldLight,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
+                    // Native Android Share Button
+                    OutlinedButton(
+                        onClick = {
+                            val sendIntent = Intent().apply {
+                                action = Intent.ACTION_SEND
+                                putExtra(Intent.EXTRA_TEXT, shareText)
+                                type = "text/plain"
+                            }
+                            val shareIntent = Intent.createChooser(sendIntent, "Share Voxora Class Code")
+                            context.startActivity(shareIntent)
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Emerald800),
+                        border = BorderStroke(1.dp, Emerald700),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Share via Android Share Sheet", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showInviteDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
+                ) {
+                    Text("Done")
+                }
+            }
+        )
+    }
+
     // Leave Confirmation Dialog
     if (showLeaveConfirmation) {
         AlertDialog(
@@ -717,6 +930,7 @@ fun LiveClassScreen(
                     onClick = {
                         showLeaveConfirmation = false
                         liveKitService.leaveClass()
+                        inClassroom = false
                         onLeaveClass()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
@@ -905,6 +1119,8 @@ fun LiveClassHeader(
     onOpenSettings: () -> Unit,
     onReconnect: () -> Unit,
     onLeaveClick: () -> Unit,
+    classCode: String = "",
+    onCopyCode: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -949,12 +1165,44 @@ fun LiveClassHeader(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text(
-                            text = subject,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Emerald300,
-                            maxLines = 1
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = subject,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Emerald300,
+                                maxLines = 1
+                            )
+                            if (classCode.isNotBlank()) {
+                                Surface(
+                                    onClick = onCopyCode,
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Emerald800,
+                                    border = BorderStroke(0.5.dp, GoldPrimary.copy(alpha = 0.5f))
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    ) {
+                                        Text(
+                                            text = classCode,
+                                            color = GoldLight,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.Share,
+                                            contentDescription = "Share Code",
+                                            tint = GoldLight,
+                                            modifier = Modifier.size(10.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -999,7 +1247,7 @@ fun LiveClassHeader(
                             modifier = Modifier.padding(horizontal = 8.dp)
                         ) {
                             Text(
-                                text = if (currentRole == ClassroomRole.TEACHER) "Ustaz Mode" else "Student",
+                                text = if (currentRole == ClassroomRole.TEACHER) "Teacher" else "Student",
                                 color = if (currentRole == ClassroomRole.TEACHER) GoldLight else Color.White,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
@@ -1072,14 +1320,17 @@ fun ConnectionStatusBadge(
 
 @Composable
 fun TeacherHeroView(
-    teacher: com.example.data.model.Teacher,
+    teacherName: String,
     teacherVideoTrack: io.livekit.android.room.track.VideoTrack?,
     room: io.livekit.android.room.Room?,
     activeSpeaker: String?,
+    isMe: Boolean = false,
+    isVideoOn: Boolean = false,
+    isMicMuted: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val isSpeaking = activeSpeaker?.contains("teacher", ignoreCase = true) == true ||
-            activeSpeaker?.contains(teacher.name, ignoreCase = true) == true
+            activeSpeaker?.contains(teacherName, ignoreCase = true) == true
 
     Card(
         shape = RoundedCornerShape(18.dp),
@@ -1100,7 +1351,7 @@ fun TeacherHeroView(
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
-                // Elegant Islamic Canvas for Ustaz
+                // Modern Islamic Gradient Canvas when camera is off
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1119,54 +1370,52 @@ fun TeacherHeroView(
                             shape = CircleShape,
                             color = Emerald700,
                             border = BorderStroke(2.dp, GoldPrimary),
-                            modifier = Modifier.size(72.dp)
+                            modifier = Modifier.size(68.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                if (teacher.imageDrawableRes != null) {
-                                    Image(
-                                        painter = painterResource(id = teacher.imageDrawableRes),
-                                        contentDescription = teacher.name,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else {
-                                    Text(
-                                        text = "📖",
-                                        fontSize = 32.sp
-                                    )
-                                }
+                                Text(
+                                    text = teacherName.take(2).uppercase(),
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
                             }
                         }
 
                         Text(
-                            text = teacher.name,
+                            text = if (isMe) "$teacherName (You)" else teacherName,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = Color.White
                         )
 
                         Text(
-                            text = teacher.title,
+                            text = if (isMe) "You are hosting this live class" else "Class Instructor",
                             style = MaterialTheme.typography.labelSmall,
                             color = Emerald300
                         )
 
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = Emerald800.copy(alpha = 0.8f),
+                            border = BorderStroke(0.5.dp, Emerald600)
                         ) {
-                            teacher.credentials.take(2).forEach { cred ->
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = Emerald800
-                                ) {
-                                    Text(
-                                        text = cred,
-                                        color = GoldLight,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.VideocamOff,
+                                    contentDescription = null,
+                                    tint = Emerald300,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = "Camera Off",
+                                    color = Emerald200,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
                     }
@@ -1194,7 +1443,7 @@ fun TeacherHeroView(
                     ) {
                         Icon(imageVector = Icons.Default.School, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(12.dp))
                         Text(
-                            text = "Teacher / Host",
+                            text = if (isMe) "Teacher / Host (You)" else "Teacher / Host",
                             color = GoldLight,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
@@ -1202,23 +1451,43 @@ fun TeacherHeroView(
                     }
                 }
 
-                if (isSpeaking) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = GoldDark,
-                        border = BorderStroke(0.5.dp, GoldLight)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isSpeaking) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = GoldDark,
+                            border = BorderStroke(0.5.dp, GoldLight)
                         ) {
-                            Icon(imageVector = Icons.Default.GraphicEq, contentDescription = null, tint = GoldLight, modifier = Modifier.size(12.dp))
-                            Text(
-                                text = "Speaking",
-                                color = GoldLight,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.GraphicEq, contentDescription = null, tint = GoldLight, modifier = Modifier.size(12.dp))
+                                Text(
+                                    text = "Speaking",
+                                    color = GoldLight,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isMicMuted) Color(0xFFDC2626) else Color(0xFF10B981),
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (isMicMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
                             )
                         }
                     }
@@ -1232,7 +1501,7 @@ fun TeacherHeroView(
                 modifier = Modifier.align(Alignment.BottomStart)
             ) {
                 Text(
-                    text = "${teacher.name} (${teacher.country})",
+                    text = if (isMe) "$teacherName (You) • Live" else "$teacherName • Live",
                     color = Color.White,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -1437,6 +1706,8 @@ fun ParticipantTile(
     onSelectReciter: () -> Unit,
     onMuteParticipant: () -> Unit,
     onKickParticipant: () -> Unit,
+    videoTrack: io.livekit.android.room.track.VideoTrack? = null,
+    room: io.livekit.android.room.Room? = null,
     modifier: Modifier = Modifier
 ) {
     val isSpeaking = participant.isSpeaking || activeSpeaker == participant.name || activeSpeaker == participant.id
@@ -1457,44 +1728,84 @@ fun ParticipantTile(
             }
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = if (participant.isHandRaised) GoldPrimary else Emerald800,
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = participant.name.take(2).uppercase(),
-                            color = if (participant.isHandRaised) Emerald950 else Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
+            if (videoTrack != null && room != null) {
+                // Render real video track
+                LiveKitVideoRenderer(
+                    room = room,
+                    videoTrack = videoTrack,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                // Dark gradient overlay for bottom text readability
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f))
+                            )
                         )
-                    }
+                )
+
+                // Bottom participant name tag
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(6.dp)
+                        .align(Alignment.BottomStart)
+                ) {
+                    Text(
+                        text = participant.name,
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
+            } else {
+                // Camera off - Initials Avatar
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = if (participant.isHandRaised) GoldPrimary else Emerald800,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = participant.name.take(2).uppercase(),
+                                color = if (participant.isHandRaised) Emerald950 else Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                        }
+                    }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
-                Text(
-                    text = participant.name,
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                    Text(
+                        text = participant.name,
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
 
-                Text(
-                    text = if (isSpeaking) "Speaking" else if (participant.isMicMuted) "Muted" else "Listening",
-                    color = if (isSpeaking) GoldLight else Emerald300,
-                    fontSize = 10.sp
-                )
+                    Text(
+                        text = if (isSpeaking) "Speaking" else if (participant.isMicMuted) "Muted" else "Listening",
+                        color = if (isSpeaking) GoldLight else Emerald300,
+                        fontSize = 10.sp
+                    )
+                }
             }
 
             // Top Status Icons (Mic & Hand Raise)
@@ -1505,12 +1816,20 @@ fun ParticipantTile(
                     .align(Alignment.TopStart),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    imageVector = if (participant.isMicMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                    contentDescription = null,
-                    tint = if (participant.isMicMuted) Color(0xFFEF4444) else Color(0xFF10B981),
-                    modifier = Modifier.size(14.dp)
-                )
+                Surface(
+                    shape = CircleShape,
+                    color = if (participant.isMicMuted) Color(0xFFDC2626) else Color(0xFF10B981),
+                    modifier = Modifier.size(18.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (participant.isMicMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(11.dp)
+                        )
+                    }
+                }
 
                 if (participant.isHandRaised) {
                     Text("✋", fontSize = 12.sp)
@@ -1572,6 +1891,7 @@ fun LiveClassBottomBar(
     onOpenSharedQuran: () -> Unit,
     onOpenChat: () -> Unit,
     onOpenTeacherControls: () -> Unit,
+    onOpenInvite: () -> Unit = {},
     onLeaveClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1585,8 +1905,9 @@ fun LiveClassBottomBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 8.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Microphone Toggle
@@ -1677,6 +1998,18 @@ fun LiveClassBottomBar(
                     }
                 }
             }
+
+            // Invite Button
+            ControlBarButton(
+                icon = Icons.Default.Share,
+                label = "Invite",
+                isActive = true,
+                activeColor = Emerald800,
+                inactiveColor = Emerald800,
+                iconTint = GoldLight,
+                onClick = onOpenInvite,
+                testTag = "control_invite_button"
+            )
 
             // Teacher Controls (if teacher)
             if (currentRole == ClassroomRole.TEACHER) {
@@ -1844,7 +2177,7 @@ fun ClassroomChatBottomSheet(
                 OutlinedTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
-                    placeholder = { Text("Ask Ustaz a question or comment...", color = Emerald400) },
+                    placeholder = { Text("Ask a question or comment...", color = Emerald400) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
@@ -1908,7 +2241,7 @@ fun ChatBubble(message: ClassChatMessage) {
                     color = GoldDark
                 ) {
                     Text(
-                        text = "Ustaz",
+                        text = "Teacher",
                         color = GoldLight,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
@@ -2053,7 +2386,7 @@ fun SharedQuranSheet(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = packet.note ?: "Listen to Ustaz's demonstration.",
+                        text = packet.note ?: "Listen to Teacher's demonstration.",
                         color = Emerald200,
                         fontSize = 12.sp
                     )
@@ -2075,7 +2408,7 @@ fun SharedQuranSheet(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Ustaz Classroom Broadcast Controls",
+                            text = "Teacher Classroom Broadcast Controls",
                             fontWeight = FontWeight.Bold,
                             color = GoldLight,
                             fontSize = 13.sp
@@ -2248,7 +2581,7 @@ fun TeacherControlsBottomSheet(
                                     fontSize = 13.sp
                                 )
                                 Text(
-                                    text = if (p.isTeacher) "Ustaz" else if (p.isHandRaised) "✋ Hand Raised" else "Student",
+                                    text = if (p.isTeacher) "Teacher" else if (p.isHandRaised) "✋ Hand Raised" else "Student",
                                     color = if (p.isHandRaised) GoldLight else Emerald300,
                                     fontSize = 11.sp
                                 )

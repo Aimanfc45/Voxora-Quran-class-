@@ -973,7 +973,7 @@ class VoxoraRepository(
 
     fun setClassHighlightedVerse(verseNum: Int) {
         _classHighlightedVerse.value = verseNum
-        _teacherAnnotation.value = "Ustaz Ahmad highlighted Verse $verseNum for recitation assessment."
+        _teacherAnnotation.value = "Teacher highlighted Verse $verseNum for recitation assessment."
     }
 
     fun setLiveClassMode(mode: ClassType) {

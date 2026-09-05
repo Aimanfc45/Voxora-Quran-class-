@@ -70,5 +70,6 @@ data class Participant(
     val isVideoOn: Boolean = true,
     val isTeacher: Boolean = false,
     val role: String = "Student",
-    val isSpeaking: Boolean = false
+    val isSpeaking: Boolean = false,
+    val isLocal: Boolean = false
 )

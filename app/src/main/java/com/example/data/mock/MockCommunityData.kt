@@ -71,9 +71,9 @@ object MockCommunityData {
     val initialPosts = listOf(
         CommunityPost(
             id = "p_1",
-            authorName = "Ustaz Ahmad Al-Azhari",
+            authorName = "Verified Quran Instructor",
             authorRole = "Teacher",
-            authorCountry = "Egypt / Malaysia",
+            authorCountry = "Malaysia",
             timeAgo = "2h ago",
             groupName = "Tajwid Beginners",
             content = "Tip for today: In Surah Al-Fatihah verse 7, make sure to hold the elongation for 'Walad-Daaalleen' (وَلَا الضَّالِّينَ) for a full 6 counts (Mad Lazim Kalimi Muthaqqal). Notice the heavy shaddah on the Lam right after the long Alif!",
@@ -83,7 +83,7 @@ object MockCommunityData {
             commentsCount = 12,
             isTeacherPost = true,
             comments = listOf(
-                PostComment("c_1", "Ahmed Al-Farsi", "JazakAllahu Khairan Ustaz! Practiced this in class today.", "1h ago"),
+                PostComment("c_1", "Ahmed Al-Farsi", "JazakAllahu Khairan! Practiced this in class today.", "1h ago"),
                 PostComment("c_2", "Maryam Farooq", "Very helpful explanation, thank you!", "45m ago")
             )
         ),
@@ -111,7 +111,7 @@ object MockCommunityData {
             authorCountry = "United Kingdom",
             timeAgo = "6h ago",
             groupName = "Global Quran Learners",
-            content = "Who else is attending Ustaz Ahmad's Live Tajwid class today? Looking forward to the interactive recitation practice on Surah Al-Baqarah.",
+            content = "Who else is attending today's Live Tajwid class? Looking forward to the interactive recitation practice on Surah Al-Baqarah.",
             surahReference = "Surah Al-Baqarah (2:1-5)",
             likesCount = 29,
             isLiked = false,

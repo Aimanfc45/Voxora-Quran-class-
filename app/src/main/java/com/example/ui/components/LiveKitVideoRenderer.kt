@@ -8,24 +8,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import io.livekit.android.renderer.SurfaceViewRenderer
 import io.livekit.android.room.Room
 import io.livekit.android.room.track.VideoTrack
+import livekit.org.webrtc.RendererCommon
 
 @Composable
 fun LiveKitVideoRenderer(
     room: Room?,
     videoTrack: VideoTrack?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isMirror: Boolean = false,
+    scalingType: RendererCommon.ScalingType = RendererCommon.ScalingType.SCALE_ASPECT_FIT
 ) {
     if (room == null || videoTrack == null) {
-        Box(modifier = modifier.background(Color.Black))
+        Box(modifier = modifier.background(Color(0xFF064E3B)))
         return
     }
 
-    val context = LocalContext.current
+    var currentAttachedTrack by remember { mutableStateOf<VideoTrack?>(null) }
 
     AndroidView(
         factory = { ctx ->
@@ -36,24 +38,36 @@ fun LiveKitVideoRenderer(
                 )
                 try {
                     room.initVideoRenderer(this)
+                    setScalingType(scalingType)
+                    setMirror(isMirror)
+                    setEnableHardwareScaler(true)
                     videoTrack.addRenderer(this)
+                    currentAttachedTrack = videoTrack
                 } catch (_: Exception) {
                 }
             }
         },
         update = { renderer ->
             try {
-                videoTrack.addRenderer(renderer)
+                renderer.setMirror(isMirror)
+                renderer.setScalingType(scalingType)
+                if (currentAttachedTrack != videoTrack) {
+                    currentAttachedTrack?.removeRenderer(renderer)
+                    videoTrack.addRenderer(renderer)
+                    currentAttachedTrack = videoTrack
+                }
             } catch (_: Exception) {
             }
         },
         onRelease = { renderer ->
             try {
                 videoTrack.removeRenderer(renderer)
+                currentAttachedTrack?.removeRenderer(renderer)
                 renderer.release()
             } catch (_: Exception) {
             }
         },
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
     )
 }
+

@@ -8,7 +8,7 @@ object MockNotificationData {
         AppNotification(
             id = "notif_1",
             title = "Upcoming Live Class in 15 mins",
-            message = "Ustaz Ahmad Shakir's Tajwid — Rules of Noon Sakinah starts at 08:00 PM.",
+            message = "Live Tajwid — Rules of Noon Sakinah starts at 08:00 PM.",
             type = NotificationType.UPCOMING_CLASS,
             timestamp = "15m ago",
             isRead = false,
@@ -16,7 +16,7 @@ object MockNotificationData {
         ),
         AppNotification(
             id = "notif_2",
-            title = "Ustaz Ahmad sent feedback",
+            title = "Quran Instructor sent feedback",
             message = "Great improvement on your Qalqalah articulation in Surah Al-Ikhlas! Check notes.",
             type = NotificationType.TEACHER_MESSAGE,
             timestamp = "1h ago",

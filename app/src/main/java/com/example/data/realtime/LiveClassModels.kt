@@ -56,6 +56,16 @@ data class ParticipantActionPacket(
     val action: String = "MUTE" // "MUTE", "KICK", "SELECT_RECITER", "MODE_SWITCH"
 )
 
+@JsonClass(generateAdapter = true)
+data class ClassInfoPacket(
+    val type: String = "class_info",
+    val classCode: String = "",
+    val className: String = "",
+    val topic: String = "",
+    val classType: String = "GROUP",
+    val hostName: String = "Teacher / Host"
+)
+
 data class LiveQuranRoomModel(
     val roomId: String = "vox-room-786",
     val classId: String = "cls_live_01",
